@@ -50,15 +50,26 @@ async function fetchCandidatePool(prefs: Preferences): Promise<TmdbDiscoverMovie
     minVoteCount: prefs.highlyRated ? 300 : withGenres.includes(GENRE_IDS.documentary) ? 20 : 80,
   };
 
-  let results = await discoverMovies({ ...baseParams, page: 1 });
+  // Primary attempt: only titles TMDB reports as actually streaming (flatrate)
+  // on Netflix in Israel right now. This is what keeps "watch tonight" honest —
+  // without it, discover happily returns movies still in theaters or on other
+  // platforms entirely.
+  let results = await discoverMovies({ ...baseParams, netflixOnly: true, page: 1 });
   if (results.length < CANDIDATE_POOL) {
-    const page2 = await discoverMovies({ ...baseParams, page: 2 });
+    const page2 = await discoverMovies({ ...baseParams, netflixOnly: true, page: 2 });
     results = [...results, ...page2];
   }
 
-  // If the strict combination of filters is too narrow, progressively relax.
+  // If the strict combination of filters is too narrow, progressively relax —
+  // genre exclusions and runtime/year first, Netflix-only last, so a niche
+  // request still returns something rather than nothing.
   if (results.length < 4 && withoutGenres.length) {
-    results = await discoverMovies({ ...baseParams, withoutGenres: [], page: 1 });
+    results = await discoverMovies({
+      ...baseParams,
+      withoutGenres: [],
+      netflixOnly: true,
+      page: 1,
+    });
   }
   if (results.length < 4 && (prefs.maxRuntime || prefs.minYear)) {
     results = await discoverMovies({
@@ -66,8 +77,12 @@ async function fetchCandidatePool(prefs: Preferences): Promise<TmdbDiscoverMovie
       maxRuntime: null,
       minYear: null,
       withoutGenres,
+      netflixOnly: true,
       page: 1,
     });
+  }
+  if (results.length < 4) {
+    results = await discoverMovies({ ...baseParams, page: 1 });
   }
 
   const seen = new Set<number>();

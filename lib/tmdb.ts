@@ -69,6 +69,9 @@ export type DiscoverParams = {
   sortBy?: "popularity.desc" | "vote_average.desc";
   minVoteCount?: number;
   page?: number;
+  // When true, only return titles TMDB reports as streaming (flatrate) on
+  // Netflix in WATCH_REGION right now — not just "popular movies in general."
+  netflixOnly?: boolean;
 };
 
 export async function discoverMovies(
@@ -90,6 +93,10 @@ export async function discoverMovies(
   if (opts.minRuntime) params["with_runtime.gte"] = String(opts.minRuntime);
   if (opts.minYear) params["primary_release_date.gte"] = `${opts.minYear}-01-01`;
   if (opts.maxYear) params["primary_release_date.lte"] = `${opts.maxYear}-12-31`;
+  if (opts.netflixOnly) {
+    params.with_watch_providers = String(NETFLIX_PROVIDER_ID);
+    params.with_watch_monetization_types = "flatrate";
+  }
 
   const data = await tmdbFetch<{ results: TmdbDiscoverMovie[] }>(
     "/discover/movie",
