@@ -151,6 +151,15 @@ export default function Conversation({
             : "לא הוגדר מפתח AI (Anthropic/OpenAI) — ההמלצות מבוססות על חיפוש חכם ב-TMDB בלבד."}
         </p>
       )}
+      {/* TEMPORARY DEBUG — remove once the AI call failure is diagnosed */}
+      {latestTurn.result.aiError && (
+        <p
+          dir="ltr"
+          className="mx-auto max-w-2xl break-words rounded-lg bg-red-50 p-3 text-center text-xs text-red-700"
+        >
+          DEBUG aiError: {latestTurn.result.aiError}
+        </p>
+      )}
 
       {latestTurn.result.recommendations.length === 0 ? (
         <p className="text-center text-ink/50">לא מצאתי סרטים מתאימים לבקשה הזו.</p>
