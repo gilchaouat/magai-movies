@@ -121,22 +121,7 @@ async function Results({ query }: { query: string }) {
         </p>
       )}
       <ResultsClient recommendations={result.recommendations} />
-      <DebugTrace trace={result.debugTrace} />
     </>
-  );
-}
-
-function DebugTrace({ trace }: { trace: string[] }) {
-  if (!trace.length) return null;
-  return (
-    <details className="mx-auto mt-10 max-w-3xl rounded-xl bg-ink/5 p-4 text-left" dir="ltr">
-      <summary className="cursor-pointer text-xs font-bold text-ink/50">
-        DEBUG — temporary, remove once Netflix filtering is confirmed working
-      </summary>
-      <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[11px] leading-relaxed text-ink/70">
-        {trace.join("\n")}
-      </pre>
-    </details>
   );
 }
 

@@ -35,10 +35,7 @@ function preferencesToSummary(p: Preferences): string {
   return parts.length ? parts.join(" | ") : p.summary;
 }
 
-async function fetchCandidatePool(
-  prefs: Preferences,
-  trace: string[]
-): Promise<TmdbDiscoverMovie[]> {
+async function fetchCandidatePool(prefs: Preferences): Promise<TmdbDiscoverMovie[]> {
   const withGenres = prefs.genres.map((g) => GENRE_IDS[g]).filter(Boolean);
   const withoutGenres = prefs.excludeGenres.map((g) => GENRE_IDS[g]).filter(Boolean);
 
@@ -52,17 +49,14 @@ async function fetchCandidatePool(
     sortBy: prefs.highlyRated ? ("vote_average.desc" as const) : ("popularity.desc" as const),
     minVoteCount: prefs.highlyRated ? 300 : withGenres.includes(GENRE_IDS.documentary) ? 20 : 80,
   };
-  trace.push(`baseParams: ${JSON.stringify(baseParams)}`);
 
   // Primary attempt: only titles TMDB reports as actually streaming (flatrate)
   // on Netflix in Israel right now. This is what keeps "watch tonight" honest —
   // without it, discover happily returns movies still in theaters or on other
   // platforms entirely.
-  let results = await discoverMovies({ ...baseParams, netflixOnly: true, page: 1 }, trace);
-  trace.push(`netflixOnly page1: ${results.length} results`);
+  let results = await discoverMovies({ ...baseParams, netflixOnly: true, page: 1 });
   if (results.length < CANDIDATE_POOL) {
-    const page2 = await discoverMovies({ ...baseParams, netflixOnly: true, page: 2 }, trace);
-    trace.push(`netflixOnly page2: ${page2.length} results`);
+    const page2 = await discoverMovies({ ...baseParams, netflixOnly: true, page: 2 });
     results = [...results, ...page2];
   }
 
@@ -70,29 +64,25 @@ async function fetchCandidatePool(
   // genre exclusions and runtime/year first, Netflix-only last, so a niche
   // request still returns something rather than nothing.
   if (results.length < 4 && withoutGenres.length) {
-    results = await discoverMovies(
-      { ...baseParams, withoutGenres: [], netflixOnly: true, page: 1 },
-      trace
-    );
-    trace.push(`fallback drop-exclusions netflixOnly: ${results.length} results`);
+    results = await discoverMovies({
+      ...baseParams,
+      withoutGenres: [],
+      netflixOnly: true,
+      page: 1,
+    });
   }
   if (results.length < 4 && (prefs.maxRuntime || prefs.minYear)) {
-    results = await discoverMovies(
-      {
-        ...baseParams,
-        maxRuntime: null,
-        minYear: null,
-        withoutGenres,
-        netflixOnly: true,
-        page: 1,
-      },
-      trace
-    );
-    trace.push(`fallback drop-runtime/year netflixOnly: ${results.length} results`);
+    results = await discoverMovies({
+      ...baseParams,
+      maxRuntime: null,
+      minYear: null,
+      withoutGenres,
+      netflixOnly: true,
+      page: 1,
+    });
   }
   if (results.length < 4) {
-    results = await discoverMovies({ ...baseParams, page: 1 }, trace);
-    trace.push(`fallback DROPPED netflixOnly entirely: ${results.length} results`);
+    results = await discoverMovies({ ...baseParams, page: 1 });
   }
 
   const seen = new Set<number>();
@@ -120,14 +110,11 @@ function templateWhy(prefs: Preferences, m: {
 }
 
 export async function getRecommendations(query: string): Promise<RecommendResult> {
-  const trace: string[] = [];
   const { preferences, usedAI, aiError } = await parsePromptToPreferences(query);
-  trace.push(`preferences: ${JSON.stringify(preferences)}`);
-  trace.push(`usedAI: ${usedAI}${aiError ? `, aiError: ${aiError}` : ""}`);
 
   let candidates: TmdbDiscoverMovie[];
   try {
-    candidates = await fetchCandidatePool(preferences, trace);
+    candidates = await fetchCandidatePool(preferences);
   } catch (err) {
     if (err instanceof TmdbConfigError) throw err;
     throw new Error(
@@ -217,6 +204,5 @@ export async function getRecommendations(query: string): Promise<RecommendResult
     recommendations,
     usedAI,
     aiError,
-    debugTrace: trace,
   };
 }
