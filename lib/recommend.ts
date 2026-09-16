@@ -31,6 +31,19 @@ function yearFromDate(date: string | undefined): string | null {
   return /^\d{4}$/.test(y) ? y : null;
 }
 
+// TMDB has no "features child characters" filter — the closest real lever
+// is a content-rating ceiling, which at least keeps clearly adult-oriented
+// titles (e.g. an R-rated thriller) out of "family"/"kids" requests. It's a
+// proxy, not a semantic match: it can't guarantee children are prominent
+// characters, only that the content itself isn't for adults.
+function certificationForAudience(audience: string | null): string | null {
+  if (!audience) return null;
+  const a = audience.toLowerCase();
+  if (a.includes("famil") || a.includes("kid") || a.includes("child")) return "PG";
+  if (a.includes("teen")) return "PG-13";
+  return null;
+}
+
 function preferencesToSummary(p: Preferences): string {
   const parts: string[] = [];
   if (p.genres.length) parts.push(`ז'אנרים: ${p.genres.join(", ")}`);
@@ -55,6 +68,7 @@ async function fetchCandidatePool(
   const withGenres = explicitGenres.length ? explicitGenres : tasteGenres;
   const usedTasteDefault = tasteGenres.length > 0;
   const withoutGenres = prefs.excludeGenres.map((g) => GENRE_IDS[g]).filter(Boolean);
+  const certificationLte = certificationForAudience(prefs.audience);
 
   const baseParams = {
     withGenres,
@@ -65,6 +79,7 @@ async function fetchCandidatePool(
     maxYear: prefs.maxYear,
     sortBy: prefs.highlyRated ? ("vote_average.desc" as const) : ("popularity.desc" as const),
     minVoteCount: prefs.highlyRated ? 300 : withGenres.includes(GENRE_IDS.documentary) ? 20 : 80,
+    certificationLte,
   };
 
   // Primary attempt: only titles TMDB reports as actually streaming (flatrate)
@@ -77,9 +92,19 @@ async function fetchCandidatePool(
     results = [...results, ...page2];
   }
 
-  // If the strict combination of filters is too narrow, progressively relax —
-  // genre exclusions and runtime/year first, Netflix-only last, so a niche
-  // request still returns something rather than nothing.
+  // If the strict combination of filters is too narrow, progressively relax.
+  // certificationLte is our own inference (not something the user explicitly
+  // asked for), so it's the first thing dropped — then genre exclusions and
+  // runtime/year, which the user did state explicitly — and Netflix-only
+  // last, so a niche request still returns something rather than nothing.
+  if (results.length < 4 && certificationLte) {
+    results = await discoverMovies({
+      ...baseParams,
+      certificationLte: null,
+      netflixOnly: true,
+      page: 1,
+    });
+  }
   if (results.length < 4 && withoutGenres.length) {
     results = await discoverMovies({
       ...baseParams,
@@ -99,7 +124,7 @@ async function fetchCandidatePool(
     });
   }
   if (results.length < 4) {
-    results = await discoverMovies({ ...baseParams, page: 1 });
+    results = await discoverMovies({ ...baseParams, certificationLte: null, page: 1 });
   }
 
   const seen = new Set<number>();
@@ -125,6 +150,7 @@ function templateWhy(
   if (prefs.maxRuntime && m.runtime) bits.push(`אורך של ${m.runtime} דקות עומד בדרישת הזמן`);
   if (prefs.highlyRated && m.rating) bits.push(`דירוג גבוה של ${m.rating.toFixed(1)}/10`);
   if (prefs.excludeGenres.length) bits.push(`ללא ${prefs.excludeGenres.join("/")}`);
+  if (certificationForAudience(prefs.audience)) bits.push(`מתאים לקהל: ${prefs.audience}`);
   if (!bits.length) bits.push("נבחר על סמך פופולריות ואיכות התאמה לבקשה שלך");
   return bits.join(" · ");
 }

@@ -72,6 +72,10 @@ export type DiscoverParams = {
   // When true, only return titles TMDB reports as streaming (flatrate) on
   // Netflix in WATCH_REGION right now — not just "popular movies in general."
   netflixOnly?: boolean;
+  // US MPAA rating ceiling (e.g. "PG", "PG-13") — TMDB's certification data
+  // is far more complete for the US than for Israel, so this always checks
+  // against US certifications regardless of WATCH_REGION.
+  certificationLte?: string | null;
 };
 
 export async function discoverMovies(
@@ -96,6 +100,10 @@ export async function discoverMovies(
   if (opts.netflixOnly) {
     params.with_watch_providers = String(NETFLIX_PROVIDER_ID);
     params.with_watch_monetization_types = "flatrate";
+  }
+  if (opts.certificationLte) {
+    params.certification_country = "US";
+    params["certification.lte"] = opts.certificationLte;
   }
 
   const data = await tmdbFetch<{ results: TmdbDiscoverMovie[] }>(
