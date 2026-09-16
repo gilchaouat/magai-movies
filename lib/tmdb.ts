@@ -76,6 +76,12 @@ export type DiscoverParams = {
   // is far more complete for the US than for Israel, so this always checks
   // against US certifications regardless of WATCH_REGION.
   certificationLte?: string | null;
+  // When multiple withGenres are given: true requires a movie to match ALL
+  // of them (comma-joined), false matches ANY of them (pipe-joined). AND is
+  // what actually narrows a compound request like "music, history, drama"
+  // to genuinely relevant titles — OR-ing a broad genre like "drama" in
+  // with more specific ones just returns generic popular dramas.
+  genreMatchAll?: boolean;
 };
 
 export async function discoverMovies(
@@ -90,7 +96,8 @@ export async function discoverMovies(
     page: String(opts.page ?? 1),
     watch_region: WATCH_REGION,
   };
-  if (opts.withGenres?.length) params.with_genres = opts.withGenres.join("|");
+  if (opts.withGenres?.length)
+    params.with_genres = opts.withGenres.join(opts.genreMatchAll ? "," : "|");
   if (opts.withoutGenres?.length)
     params.without_genres = opts.withoutGenres.join(",");
   if (opts.maxRuntime) params["with_runtime.lte"] = String(opts.maxRuntime);

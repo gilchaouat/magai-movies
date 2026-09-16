@@ -39,4 +39,8 @@ export type RecommendResult = {
   // one in — what lets the UI honestly say "based on what you like" instead
   // of always claiming personalization happened.
   usedTasteDefault: boolean;
+  // True when the strict search (all identified genres/filters together)
+  // came up too thin and had to loosen constraints to find enough movies —
+  // lets the UI admit the results are a broader match, not a perfect one.
+  relaxedSearch: boolean;
 };

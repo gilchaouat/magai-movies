@@ -1,4 +1,4 @@
-import { GENRE_IDS } from "./config";
+import { GENRE_IDS, GENRE_LABELS_HE } from "./config";
 import { parsePromptToPreferences, writeEditorialBlurbs } from "./ai";
 import {
   discoverMovies,
@@ -11,6 +11,7 @@ import {
   posterUrl,
   backdropUrl,
   TmdbConfigError,
+  type DiscoverParams,
   type TmdbDiscoverMovie,
 } from "./tmdb";
 import type { Preferences, Recommendation, RecommendResult } from "./types";
@@ -24,6 +25,15 @@ import {
 
 const RESULT_COUNT = 8;
 const CANDIDATE_POOL = 16;
+// The bar for "good enough to show as-is." A handful of genuinely matching
+// movies is a better answer than padding a thin result with unrelated
+// popular titles just to hit a round number — so this stays low, and the
+// cascade below only keeps loosening constraints while under it.
+const MIN_RESULTS = 3;
+
+function genreLabel(key: string): string {
+  return GENRE_LABELS_HE[key] ?? key;
+}
 
 function yearFromDate(date: string | undefined): string | null {
   if (!date) return null;
@@ -59,7 +69,11 @@ function preferencesToSummary(p: Preferences): string {
 async function fetchCandidatePool(
   prefs: Preferences,
   profile: TasteProfile
-): Promise<{ results: TmdbDiscoverMovie[]; usedTasteDefault: boolean }> {
+): Promise<{
+  results: TmdbDiscoverMovie[];
+  usedTasteDefault: boolean;
+  relaxedSearch: boolean;
+}> {
   const explicitGenres = prefs.genres.map((g) => GENRE_IDS[g]).filter(Boolean);
   // When the request doesn't name a genre, lean on what this device has
   // previously liked instead of pure popularity — this is what lets someone
@@ -69,8 +83,9 @@ async function fetchCandidatePool(
   const usedTasteDefault = tasteGenres.length > 0;
   const withoutGenres = prefs.excludeGenres.map((g) => GENRE_IDS[g]).filter(Boolean);
   const certificationLte = certificationForAudience(prefs.audience);
+  const multiGenre = withGenres.length > 1;
 
-  const baseParams = {
+  const baseParams: DiscoverParams = {
     withGenres,
     withoutGenres,
     maxRuntime: prefs.maxRuntime,
@@ -82,49 +97,48 @@ async function fetchCandidatePool(
     certificationLte,
   };
 
-  // Primary attempt: only titles TMDB reports as actually streaming (flatrate)
-  // on Netflix in Israel right now. This is what keeps "watch tonight" honest —
-  // without it, discover happily returns movies still in theaters or on other
-  // platforms entirely.
-  let results = await discoverMovies({ ...baseParams, netflixOnly: true, page: 1 });
-  if (results.length < CANDIDATE_POOL) {
-    const page2 = await discoverMovies({ ...baseParams, netflixOnly: true, page: 2 });
-    results = [...results, ...page2];
-  }
-
-  // If the strict combination of filters is too narrow, progressively relax.
-  // certificationLte is our own inference (not something the user explicitly
-  // asked for), so it's the first thing dropped — then genre exclusions and
-  // runtime/year, which the user did state explicitly — and Netflix-only
+  // Attempts run strictest-first and stop as soon as one clears MIN_RESULTS —
+  // a thin-but-accurate result is shown as-is rather than padded by
+  // loosening further. When multiple genres are identified, requiring ALL of
+  // them (not just any one) is what actually narrows a compound request like
+  // "music, history, drama" to genuinely relevant titles — OR-ing a broad
+  // genre like "drama" in with more specific ones just returns generic
+  // popular dramas. certificationLte is our own inference (not something the
+  // user explicitly asked for), so it's dropped before genre exclusions and
+  // runtime/year, which the user did state explicitly; Netflix-only goes
   // last, so a niche request still returns something rather than nothing.
-  if (results.length < 4 && certificationLte) {
-    results = await discoverMovies({
+  const attempts: DiscoverParams[] = [
+    { ...baseParams, genreMatchAll: multiGenre, netflixOnly: true },
+  ];
+  if (multiGenre) attempts.push({ ...baseParams, genreMatchAll: false, netflixOnly: true });
+  if (certificationLte)
+    attempts.push({ ...baseParams, genreMatchAll: false, certificationLte: null, netflixOnly: true });
+  if (withoutGenres.length)
+    attempts.push({ ...baseParams, genreMatchAll: false, withoutGenres: [], netflixOnly: true });
+  if (prefs.maxRuntime || prefs.minYear)
+    attempts.push({
       ...baseParams,
-      certificationLte: null,
-      netflixOnly: true,
-      page: 1,
-    });
-  }
-  if (results.length < 4 && withoutGenres.length) {
-    results = await discoverMovies({
-      ...baseParams,
-      withoutGenres: [],
-      netflixOnly: true,
-      page: 1,
-    });
-  }
-  if (results.length < 4 && (prefs.maxRuntime || prefs.minYear)) {
-    results = await discoverMovies({
-      ...baseParams,
+      genreMatchAll: false,
       maxRuntime: null,
       minYear: null,
-      withoutGenres,
       netflixOnly: true,
-      page: 1,
     });
+  attempts.push({ ...baseParams, genreMatchAll: false, certificationLte: null });
+
+  let results: TmdbDiscoverMovie[] = [];
+  let usedAttemptIndex = 0;
+  for (let i = 0; i < attempts.length; i++) {
+    results = await discoverMovies({ ...attempts[i], page: 1 });
+    usedAttemptIndex = i;
+    if (results.length >= MIN_RESULTS) break;
   }
-  if (results.length < 4) {
-    results = await discoverMovies({ ...baseParams, certificationLte: null, page: 1 });
+  const relaxedSearch = usedAttemptIndex > 0;
+
+  // The winning attempt found a real pool — fetch a second page under the
+  // *same* filters for more depth, not a looser match.
+  if (results.length > 0 && results.length < CANDIDATE_POOL) {
+    const page2 = await discoverMovies({ ...attempts[usedAttemptIndex], page: 2 });
+    results = [...results, ...page2];
   }
 
   const seen = new Set<number>();
@@ -135,7 +149,7 @@ async function fetchCandidatePool(
     return true;
   });
 
-  return { results: deduped.slice(0, CANDIDATE_POOL), usedTasteDefault };
+  return { results: deduped.slice(0, CANDIDATE_POOL), usedTasteDefault, relaxedSearch };
 }
 
 function templateWhy(
@@ -144,12 +158,14 @@ function templateWhy(
   tasteLabels: string[]
 ): string {
   const bits: string[] = [];
-  if (prefs.genres.length) bits.push(`תואם לחיפוש שלך אחר ${prefs.genres.join("/")}`);
+  if (prefs.genres.length)
+    bits.push(`תואם לחיפוש שלך אחר ${prefs.genres.map(genreLabel).join("/")}`);
   else if (tasteLabels.length)
     bits.push(`מבוסס על הז'אנרים שאהבת בעבר (${tasteLabels.join(", ")})`);
   if (prefs.maxRuntime && m.runtime) bits.push(`אורך של ${m.runtime} דקות עומד בדרישת הזמן`);
   if (prefs.highlyRated && m.rating) bits.push(`דירוג גבוה של ${m.rating.toFixed(1)}/10`);
-  if (prefs.excludeGenres.length) bits.push(`ללא ${prefs.excludeGenres.join("/")}`);
+  if (prefs.excludeGenres.length)
+    bits.push(`ללא ${prefs.excludeGenres.map(genreLabel).join("/")}`);
   if (certificationForAudience(prefs.audience)) bits.push(`מתאים לקהל: ${prefs.audience}`);
   if (!bits.length) bits.push("נבחר על סמך פופולריות ואיכות התאמה לבקשה שלך");
   return bits.join(" · ");
@@ -168,10 +184,12 @@ export async function getRecommendations(
 
   let candidates: TmdbDiscoverMovie[];
   let usedTasteDefault = false;
+  let relaxedSearch = false;
   try {
     const pool = await fetchCandidatePool(preferences, profile);
     candidates = pool.results;
     usedTasteDefault = pool.usedTasteDefault;
+    relaxedSearch = pool.relaxedSearch;
   } catch (err) {
     if (err instanceof TmdbConfigError) throw err;
     throw new Error(
@@ -269,5 +287,6 @@ export async function getRecommendations(
     usedAI,
     aiError,
     usedTasteDefault,
+    relaxedSearch,
   };
 }
