@@ -151,6 +151,15 @@ export default function Conversation({
             : "לא הוגדר מפתח AI (Anthropic/OpenAI) — ההמלצות מבוססות על חיפוש חכם ב-TMDB בלבד."}
         </p>
       )}
+      {/* TEMPORARY DEBUG — remove once relevance issue is diagnosed */}
+      <p
+        dir="ltr"
+        className="mx-auto max-w-2xl break-words rounded-lg bg-amber-50 p-3 text-center text-xs text-amber-800"
+      >
+        DEBUG usedAI={String(latestTurn.result.usedAI)} usedTasteDefault=
+        {String(latestTurn.result.usedTasteDefault)} preferences=
+        {JSON.stringify(latestTurn.result.preferences)}
+      </p>
 
       {latestTurn.result.recommendations.length === 0 ? (
         <p className="text-center text-ink/50">לא מצאתי סרטים מתאימים לבקשה הזו.</p>
