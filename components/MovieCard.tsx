@@ -28,7 +28,7 @@ export default function MovieCard({
             aria-label="אהבתי את ההמלצה הזו"
             aria-pressed={isLiked}
             className={`flex h-9 w-9 items-center justify-center rounded-full text-base backdrop-blur transition ${
-              isLiked ? "bg-accent text-white" : "bg-ink/50 text-white hover:bg-ink/70"
+              isLiked ? "bg-green-600 text-white" : "bg-ink/50 text-white hover:bg-ink/70"
             }`}
           >
             👍
@@ -39,7 +39,7 @@ export default function MovieCard({
             aria-label="לא אהבתי את ההמלצה הזו"
             aria-pressed={isDisliked}
             className={`flex h-9 w-9 items-center justify-center rounded-full text-base backdrop-blur transition ${
-              isDisliked ? "bg-ink text-white" : "bg-ink/50 text-white hover:bg-ink/70"
+              isDisliked ? "bg-accent text-white" : "bg-ink/50 text-white hover:bg-ink/70"
             }`}
           >
             👎

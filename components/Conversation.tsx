@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { RecommendResult } from "@/lib/types";
+import type { Preferences, RecommendResult } from "@/lib/types";
 import { readTasteProfile } from "@/lib/tasteClient";
 import ResultsClient from "./ResultsClient";
 
@@ -32,38 +32,53 @@ export default function Conversation({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const text = followUp.trim();
-    if (!text || pending) return;
+  async function runQuery(
+    text: string,
+    previousPreferences: Preferences | null
+  ): Promise<boolean> {
+    if (!text || pending) return false;
     setPending(true);
     setError(null);
     try {
-      const lastTurn = turns[turns.length - 1];
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ query: text, previousPreferences: lastTurn.result.preferences }),
+        body: JSON.stringify({ query: text, previousPreferences }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "שגיאה בלתי צפויה");
       const result = data as RecommendResult;
       const profile = readTasteProfile();
-      setTurns((t) => [
-        ...t,
-        {
-          query: text,
-          result,
-          initialLikedIds: profile.liked.map((e) => e.id),
-          initialDislikedIds: profile.disliked.map((e) => e.id),
-        },
-      ]);
-      setFollowUp("");
+      const newTurn: Turn = {
+        query: text,
+        result,
+        initialLikedIds: profile.liked.map((e) => e.id),
+        initialDislikedIds: profile.disliked.map((e) => e.id),
+      };
+      // Re-running an earlier query moves it to the end instead of appearing
+      // twice in the history log.
+      setTurns((t) => [...t.filter((turn) => turn.query !== text), newTurn]);
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בלתי צפויה. נסו שוב.");
+      return false;
     } finally {
       setPending(false);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const text = followUp.trim();
+    if (!text) return;
+    const ok = await runQuery(text, turns[turns.length - 1].result.preferences);
+    if (ok) setFollowUp("");
+  }
+
+  function handleHistoryClick(query: string) {
+    // Clicking an earlier question is a clean restart on that topic, not a
+    // refinement of whatever is currently showing.
+    runQuery(query, null);
   }
 
   const latestTurn = turns[turns.length - 1];
@@ -97,12 +112,15 @@ export default function Conversation({
       {turns.length > 1 && (
         <div className="flex flex-wrap justify-end gap-2">
           {turns.map((turn, i) => (
-            <p
+            <button
               key={i}
-              className="rounded-2xl rounded-tl-sm bg-ink px-4 py-2 text-sm text-white"
+              type="button"
+              onClick={() => handleHistoryClick(turn.query)}
+              disabled={pending}
+              className="rounded-2xl rounded-tl-sm bg-ink px-4 py-2 text-sm text-white transition hover:bg-ink/80 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {turn.query}
-            </p>
+            </button>
           ))}
         </div>
       )}

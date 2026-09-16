@@ -77,6 +77,42 @@ export function applyFeedback(
   return next;
 }
 
+// Reverses applyFeedback for one movie — used when clicking an already-active
+// 👍/👎 to cancel it, so canceling doesn't leave a phantom genre signal behind.
+export function clearFeedback(
+  profile: TasteProfile,
+  movie: { id: number; genreIds: number[] }
+): TasteProfile {
+  const next: TasteProfile = {
+    likedGenres: { ...profile.likedGenres },
+    dislikedGenres: { ...profile.dislikedGenres },
+    liked: [...profile.liked],
+    disliked: [...profile.disliked],
+  };
+
+  const wasLiked = next.liked.some((e) => e.id === movie.id);
+  const wasDisliked = next.disliked.some((e) => e.id === movie.id);
+
+  if (wasLiked) {
+    next.liked = next.liked.filter((e) => e.id !== movie.id);
+    for (const gid of movie.genreIds) {
+      const count = (next.likedGenres[gid] ?? 0) - 1;
+      if (count > 0) next.likedGenres[gid] = count;
+      else delete next.likedGenres[gid];
+    }
+  }
+  if (wasDisliked) {
+    next.disliked = next.disliked.filter((e) => e.id !== movie.id);
+    for (const gid of movie.genreIds) {
+      const count = (next.dislikedGenres[gid] ?? 0) - 1;
+      if (count > 0) next.dislikedGenres[gid] = count;
+      else delete next.dislikedGenres[gid];
+    }
+  }
+
+  return next;
+}
+
 function topGenreIds(counts: Record<string, number>, n: number): number[] {
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])

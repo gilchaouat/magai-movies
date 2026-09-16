@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { RESULT_FILTERS } from "@/lib/config";
 import type { Recommendation } from "@/lib/types";
-import { applyFeedback } from "@/lib/taste";
+import { applyFeedback, clearFeedback } from "@/lib/taste";
 import { readTasteProfile, writeTasteProfile } from "@/lib/tasteClient";
 import MovieCard from "./MovieCard";
 
@@ -29,11 +29,16 @@ export default function ResultsClient({
     // Read fresh from the cookie (not just this render's state) so feedback
     // given on a previous search isn't clobbered by a stale in-memory copy.
     const current = readTasteProfile();
-    const next = applyFeedback(
-      current,
-      { id: movie.id, title: movie.title, genreIds: movie.genreIds },
-      liked
-    );
+    const alreadyThisWay = liked
+      ? current.liked.some((e) => e.id === movie.id)
+      : current.disliked.some((e) => e.id === movie.id);
+    const next = alreadyThisWay
+      ? clearFeedback(current, { id: movie.id, genreIds: movie.genreIds })
+      : applyFeedback(
+          current,
+          { id: movie.id, title: movie.title, genreIds: movie.genreIds },
+          liked
+        );
     writeTasteProfile(next);
     setLikedIds(new Set(next.liked.map((e) => e.id)));
     setDislikedIds(new Set(next.disliked.map((e) => e.id)));
