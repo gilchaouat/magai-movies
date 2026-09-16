@@ -1,4 +1,4 @@
-import { GENRE_ID_TO_KEY } from "./config";
+import { GENRE_ID_TO_KEY, GENRE_LABELS_HE } from "./config";
 
 export const TASTE_COOKIE = "magai_taste";
 const MAX_ENTRIES = 25;
@@ -86,6 +86,12 @@ function topGenreIds(counts: Record<string, number>, n: number): number[] {
 
 export function topLikedGenreIds(profile: TasteProfile, n = 2): number[] {
   return topGenreIds(profile.likedGenres, n);
+}
+
+export function topLikedGenreLabels(profile: TasteProfile, n = 2): string[] {
+  return topLikedGenreIds(profile, n)
+    .map((id) => GENRE_LABELS_HE[GENRE_ID_TO_KEY[id]])
+    .filter((v): v is string => !!v);
 }
 
 export function profileSummaryForAI(profile: TasteProfile): string | null {

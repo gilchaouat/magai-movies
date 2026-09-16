@@ -40,12 +40,14 @@ function preferencesToSummary(p: Preferences): string {
 async function fetchCandidatePool(
   prefs: Preferences,
   profile: TasteProfile
-): Promise<TmdbDiscoverMovie[]> {
+): Promise<{ results: TmdbDiscoverMovie[]; usedTasteDefault: boolean }> {
   const explicitGenres = prefs.genres.map((g) => GENRE_IDS[g]).filter(Boolean);
   // When the request doesn't name a genre, lean on what this device has
   // previously liked instead of pure popularity — this is what lets someone
   // stop re-describing their mood every time.
-  const withGenres = explicitGenres.length ? explicitGenres : topLikedGenreIds(profile);
+  const tasteGenres = explicitGenres.length ? [] : topLikedGenreIds(profile);
+  const withGenres = explicitGenres.length ? explicitGenres : tasteGenres;
+  const usedTasteDefault = tasteGenres.length > 0;
   const withoutGenres = prefs.excludeGenres.map((g) => GENRE_IDS[g]).filter(Boolean);
 
   const baseParams = {
@@ -102,7 +104,7 @@ async function fetchCandidatePool(
     return true;
   });
 
-  return deduped.slice(0, CANDIDATE_POOL);
+  return { results: deduped.slice(0, CANDIDATE_POOL), usedTasteDefault };
 }
 
 function templateWhy(prefs: Preferences, m: {
@@ -121,16 +123,21 @@ function templateWhy(prefs: Preferences, m: {
 
 export async function getRecommendations(
   query: string,
-  profile: TasteProfile = emptyProfile()
+  profile: TasteProfile = emptyProfile(),
+  previousPreferences: Preferences | null = null
 ): Promise<RecommendResult> {
   const { preferences, usedAI, aiError } = await parsePromptToPreferences(
     query,
-    profileSummaryForAI(profile)
+    profileSummaryForAI(profile),
+    previousPreferences
   );
 
   let candidates: TmdbDiscoverMovie[];
+  let usedTasteDefault = false;
   try {
-    candidates = await fetchCandidatePool(preferences, profile);
+    const pool = await fetchCandidatePool(preferences, profile);
+    candidates = pool.results;
+    usedTasteDefault = pool.usedTasteDefault;
   } catch (err) {
     if (err instanceof TmdbConfigError) throw err;
     throw new Error(
@@ -224,5 +231,6 @@ export async function getRecommendations(
     recommendations,
     usedAI,
     aiError,
+    usedTasteDefault,
   };
 }

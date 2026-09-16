@@ -9,6 +9,9 @@ export type Preferences = {
   tone: string | null;
   audience: string | null;
   summary: string;
+  // A short, friendly Hebrew sentence acknowledging the request conversationally —
+  // what turns a search box into something that feels like it's replying to you.
+  assistantReply: string;
 };
 
 export type Recommendation = {
@@ -35,4 +38,8 @@ export type RecommendResult = {
   recommendations: Recommendation[];
   usedAI: boolean;
   aiError: string | null;
+  // True when the request didn't name a genre and the taste profile filled
+  // one in — what lets the UI honestly say "based on what you like" instead
+  // of always claiming personalization happened.
+  usedTasteDefault: boolean;
 };

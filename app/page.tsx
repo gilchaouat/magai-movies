@@ -2,12 +2,12 @@ import { Suspense } from "react";
 import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import PromptForm from "@/components/PromptForm";
-import ResultsClient from "@/components/ResultsClient";
+import Conversation from "@/components/Conversation";
 import TasteSummary from "@/components/TasteSummary";
 import { getRecommendations } from "@/lib/recommend";
 import { TmdbConfigError } from "@/lib/tmdb";
 import { activeAiProvider } from "@/lib/ai";
-import { TASTE_COOKIE, decodeProfile } from "@/lib/taste";
+import { TASTE_COOKIE, decodeProfile, topLikedGenreLabels } from "@/lib/taste";
 
 type SearchParams = Promise<{ q?: string | string[] }>;
 
@@ -119,20 +119,14 @@ async function Results({ query }: { query: string }) {
   }
 
   return (
-    <>
-      {!result.usedAI && (
-        <p className="mb-6 text-center text-xs text-ink/40">
-          {activeAiProvider()
-            ? "מנוע ה-AI לא היה זמין כרגע, כך שההמלצות מבוססות על חיפוש חכם ב-TMDB בלבד."
-            : "לא הוגדר מפתח AI (Anthropic/OpenAI) — ההמלצות מבוססות על חיפוש חכם ב-TMDB בלבד."}
-        </p>
-      )}
-      <ResultsClient
-        recommendations={result.recommendations}
-        initialLikedIds={profile.liked.map((e) => e.id)}
-        initialDislikedIds={profile.disliked.map((e) => e.id)}
-      />
-    </>
+    <Conversation
+      initialQuery={query}
+      initialResult={result}
+      initialLikedIds={profile.liked.map((e) => e.id)}
+      initialDislikedIds={profile.disliked.map((e) => e.id)}
+      initialTasteLabels={result.usedTasteDefault ? topLikedGenreLabels(profile) : []}
+      aiConfigured={!!activeAiProvider()}
+    />
   );
 }
 

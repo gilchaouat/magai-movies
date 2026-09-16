@@ -122,6 +122,35 @@ function coercePreferences(raw: unknown, fallbackSummary: string): Preferences {
       typeof r.summary === "string" && r.summary.trim()
         ? r.summary.trim()
         : fallbackSummary,
+    assistantReply:
+      typeof r.assistant_reply === "string" && r.assistant_reply.trim()
+        ? r.assistant_reply.trim()
+        : `מצאתי לך רשימה שמתאימה ל-"${fallbackSummary}".`,
+  };
+}
+
+// Fills in anything the follow-up didn't mention from the previous turn, so
+// "no, shorter" doesn't wipe out genres/exclusions from earlier in the
+// conversation. Used for the no-AI heuristic path only — the LLM path gets
+// the previous preferences as context and produces a fresh complete object.
+export function mergeFollowUpPreferences(
+  previous: Preferences,
+  followUp: Preferences
+): Preferences {
+  return {
+    genres: followUp.genres.length ? followUp.genres : previous.genres,
+    excludeGenres: followUp.excludeGenres.length
+      ? followUp.excludeGenres
+      : previous.excludeGenres,
+    maxRuntime: followUp.maxRuntime ?? previous.maxRuntime,
+    minRuntime: followUp.minRuntime ?? previous.minRuntime,
+    minYear: followUp.minYear ?? previous.minYear,
+    maxYear: followUp.maxYear ?? previous.maxYear,
+    highlyRated: followUp.highlyRated || previous.highlyRated,
+    tone: followUp.tone ?? previous.tone,
+    audience: followUp.audience ?? previous.audience,
+    summary: followUp.summary,
+    assistantReply: followUp.assistantReply,
   };
 }
 
@@ -138,7 +167,10 @@ Respond with ONLY a JSON object, no prose, matching exactly this shape:
   "highly_rated": boolean,     // true if the user wants high quality / highly rated / best
   "tone": string|null,         // short descriptor, e.g. "smart", "light", "dark", "feel-good"
   "audience": string|null,     // e.g. "couple", "family", "teenagers", "solo"
-  "summary": string            // one short Hebrew sentence paraphrasing the request
+  "summary": string,           // one short Hebrew sentence paraphrasing the request
+  "assistant_reply": string    // one short, warm Hebrew sentence replying as if in a chat,
+                                // acknowledging what you understood (e.g. "מצאתי לך כמה
+                                // קלאסיקות אקשן קלילות לערב זוגי!"). Never generic ("הנה התוצאות").
 }
 
 Rules:
@@ -147,7 +179,11 @@ Rules:
 - Infer max_runtime from phrases like "עד שעתיים" (up to 2 hours) -> 120, "under 90 minutes" -> 90.
 - Infer min_year from phrases like "מהשנים האחרונות" or "last 3 years" using the current year.
 - If nothing is specified for a field, use null (or false for highly_rated, or [] for genre arrays).
-- Never invent genres outside the allowed list.`;
+- Never invent genres outside the allowed list.
+- If the message is a follow-up on a previous conversation turn (context will be given), carry over
+  anything the follow-up doesn't contradict — e.g. "no, shorter" should keep the prior genres and
+  only change max_runtime — and make assistant_reply acknowledge the *change* specifically
+  (e.g. "בטח, הנה גרסאות קצרות יותר מאותו הז'אנר").`;
 
 const HEURISTIC_GENRE_TERMS: { key: string; terms: string[] }[] = [
   { key: "thriller", terms: ["מותחן", "מתח", "thriller"] },
@@ -216,12 +252,14 @@ function heuristicParse(query: string): Preferences {
     tone,
     audience,
     summary: query,
+    assistantReply: `מצאתי לך רשימה שמתאימה ל-"${query}".`,
   };
 }
 
 export async function parsePromptToPreferences(
   query: string,
-  tasteSummary?: string | null
+  tasteSummary?: string | null,
+  previousPreferences?: Preferences | null
 ): Promise<{
   preferences: Preferences;
   usedAI: boolean;
@@ -229,11 +267,31 @@ export async function parsePromptToPreferences(
 }> {
   const provider = activeAiProvider();
   if (!provider) {
-    return { preferences: heuristicParse(query), usedAI: false, aiError: null };
+    const parsed = heuristicParse(query);
+    return {
+      preferences: previousPreferences
+        ? mergeFollowUpPreferences(previousPreferences, parsed)
+        : parsed,
+      usedAI: false,
+      aiError: null,
+    };
   }
   try {
-    const user = tasteSummary
-      ? `${query}\n\n(Background only, do not let this override an explicit request: ${tasteSummary}.)`
+    const contextParts: string[] = [];
+    if (previousPreferences) {
+      contextParts.push(
+        `This is a follow-up in an ongoing conversation. Previous preferences: ${JSON.stringify(
+          previousPreferences
+        )}.`
+      );
+    }
+    if (tasteSummary) {
+      contextParts.push(
+        `Background only, do not let this override an explicit request: ${tasteSummary}.`
+      );
+    }
+    const user = contextParts.length
+      ? `${query}\n\n(${contextParts.join(" ")})`
       : query;
     const raw = await callLLM(PREFS_SYSTEM_PROMPT, user);
     const json = extractJson(raw);
@@ -244,7 +302,14 @@ export async function parsePromptToPreferences(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown AI error";
-    return { preferences: heuristicParse(query), usedAI: false, aiError: message };
+    const parsed = heuristicParse(query);
+    return {
+      preferences: previousPreferences
+        ? mergeFollowUpPreferences(previousPreferences, parsed)
+        : parsed,
+      usedAI: false,
+      aiError: message,
+    };
   }
 }
 
