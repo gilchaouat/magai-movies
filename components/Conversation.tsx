@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Preferences, RecommendResult } from "@/lib/types";
 import { readTasteProfile } from "@/lib/tasteClient";
+import { RESULT_FILTERS } from "@/lib/config";
 import ResultsClient from "./ResultsClient";
 
 type Turn = {
@@ -31,6 +32,10 @@ export default function Conversation({
   const [followUp, setFollowUp] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Which result-filter chip is active right now — folded into the next
+  // follow-up message so "דרמה" + "רק 2024-2026" combines without retyping
+  // the genre, while the filter itself stays an instant, free, local filter.
+  const [activeFilterGenreId, setActiveFilterGenreId] = useState<number | null>(null);
 
   async function runQuery(
     text: string,
@@ -58,6 +63,8 @@ export default function Conversation({
       // Re-running an earlier query moves it to the end instead of appearing
       // twice in the history log.
       setTurns((t) => [...t.filter((turn) => turn.query !== text), newTurn]);
+      // The new grid starts unfiltered ("הכול"), so forget the old selection.
+      setActiveFilterGenreId(null);
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בלתי צפויה. נסו שוב.");
@@ -71,7 +78,11 @@ export default function Conversation({
     e.preventDefault();
     const text = followUp.trim();
     if (!text) return;
-    const ok = await runQuery(text, turns[turns.length - 1].result.preferences);
+    const activeFilterLabel = RESULT_FILTERS.find(
+      (f) => f.genreId === activeFilterGenreId
+    )?.label;
+    const effectiveText = activeFilterLabel ? `${activeFilterLabel}, ${text}` : text;
+    const ok = await runQuery(effectiveText, turns[turns.length - 1].result.preferences);
     if (ok) setFollowUp("");
   }
 
@@ -111,17 +122,25 @@ export default function Conversation({
 
       {turns.length > 1 && (
         <div className="flex flex-wrap justify-end gap-2">
-          {turns.map((turn, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => handleHistoryClick(turn.query)}
-              disabled={pending}
-              className="rounded-2xl rounded-tl-sm bg-ink px-4 py-2 text-sm text-white transition hover:bg-ink/80 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {turn.query}
-            </button>
-          ))}
+          {turns.map((turn, i) => {
+            const isCurrent = i === turns.length - 1;
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleHistoryClick(turn.query)}
+                disabled={pending}
+                aria-pressed={isCurrent}
+                className={`rounded-2xl rounded-tl-sm px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  isCurrent
+                    ? "bg-accent text-white"
+                    : "bg-ink text-white hover:bg-ink/80"
+                }`}
+              >
+                {turn.query}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -141,6 +160,7 @@ export default function Conversation({
           recommendations={latestTurn.result.recommendations}
           initialLikedIds={latestTurn.initialLikedIds}
           initialDislikedIds={latestTurn.initialDislikedIds}
+          onFilterChange={setActiveFilterGenreId}
         />
       )}
     </div>

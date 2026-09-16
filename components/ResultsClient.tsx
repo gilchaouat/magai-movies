@@ -11,12 +11,20 @@ export default function ResultsClient({
   recommendations,
   initialLikedIds,
   initialDislikedIds,
+  onFilterChange,
 }: {
   recommendations: Recommendation[];
   initialLikedIds: number[];
   initialDislikedIds: number[];
+  // Notifies the parent which genre filter is active, purely so a follow-up
+  // message can fold it in — the filtering itself stays instant/local here.
+  onFilterChange?: (genreId: number | null) => void;
 }) {
-  const [activeFilter, setActiveFilter] = useState<number | null>(null);
+  const [activeFilter, setActiveFilterState] = useState<number | null>(null);
+  function setActiveFilter(genreId: number | null) {
+    setActiveFilterState(genreId);
+    onFilterChange?.(genreId);
+  }
   const [likedIds, setLikedIds] = useState(() => new Set(initialLikedIds));
   const [dislikedIds, setDislikedIds] = useState(() => new Set(initialDislikedIds));
 
