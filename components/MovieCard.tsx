@@ -1,27 +1,6 @@
 import Image from "next/image";
 import type { Recommendation } from "@/lib/types";
-
-const GENRE_LABELS_HE: Record<string, string> = {
-  action: "אקשן",
-  adventure: "הרפתקאות",
-  animation: "אנימציה",
-  comedy: "קומדיה",
-  crime: "פשע",
-  documentary: "דוקומנטרי",
-  drama: "דרמה",
-  family: "משפחתי",
-  fantasy: "פנטזיה",
-  history: "היסטוריה",
-  horror: "אימה",
-  music: "מוזיקה",
-  mystery: "מיסתורין",
-  romance: "רומנטי",
-  "science fiction": "מדע בדיוני",
-  thriller: "מותחן",
-  war: "מלחמה",
-  western: "מערבון",
-  "tv movie": "טלוויזיה",
-};
+import { GENRE_LABELS_HE } from "@/lib/config";
 
 export default function MovieCard({
   movie,

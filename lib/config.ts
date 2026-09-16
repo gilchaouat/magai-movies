@@ -58,3 +58,25 @@ export const RESULT_FILTERS: { label: string; genreId: number | null }[] = [
 ];
 
 export const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
+
+export const GENRE_LABELS_HE: Record<string, string> = {
+  action: "אקשן",
+  adventure: "הרפתקאות",
+  animation: "אנימציה",
+  comedy: "קומדיה",
+  crime: "פשע",
+  documentary: "דוקומנטרי",
+  drama: "דרמה",
+  family: "משפחתי",
+  fantasy: "פנטזיה",
+  history: "היסטוריה",
+  horror: "אימה",
+  music: "מוזיקה",
+  mystery: "מיסתורין",
+  romance: "רומנטי",
+  "science fiction": "מדע בדיוני",
+  thriller: "מותחן",
+  war: "מלחמה",
+  western: "מערבון",
+  "tv movie": "טלוויזיה",
+};

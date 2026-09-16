@@ -95,7 +95,7 @@ async function fetchCandidatePool(
   }
 
   const seen = new Set<number>();
-  const disliked = new Set(profile.dislikedIds);
+  const disliked = new Set(profile.disliked.map((e) => e.id));
   const deduped = results.filter((m) => {
     if (seen.has(m.id) || !m.poster_path || disliked.has(m.id)) return false;
     seen.add(m.id);

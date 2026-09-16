@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import PromptForm from "@/components/PromptForm";
 import ResultsClient from "@/components/ResultsClient";
+import TasteSummary from "@/components/TasteSummary";
 import { getRecommendations } from "@/lib/recommend";
 import { TmdbConfigError } from "@/lib/tmdb";
 import { activeAiProvider } from "@/lib/ai";
@@ -61,6 +62,7 @@ export default async function Home({
         <div className="mt-10">
           <PromptForm initialQuery={q} />
         </div>
+        <TasteSummary />
       </section>
 
       {q && (
@@ -127,8 +129,8 @@ async function Results({ query }: { query: string }) {
       )}
       <ResultsClient
         recommendations={result.recommendations}
-        initialLikedIds={profile.likedIds}
-        initialDislikedIds={profile.dislikedIds}
+        initialLikedIds={profile.liked.map((e) => e.id)}
+        initialDislikedIds={profile.disliked.map((e) => e.id)}
       />
     </>
   );

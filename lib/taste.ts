@@ -1,17 +1,29 @@
 import { GENRE_ID_TO_KEY } from "./config";
 
 export const TASTE_COOKIE = "magai_taste";
-const MAX_IDS = 25;
+const MAX_ENTRIES = 25;
+
+export type LikedEntry = { id: number; title: string };
 
 export type TasteProfile = {
   likedGenres: Record<string, number>;
   dislikedGenres: Record<string, number>;
-  likedIds: number[];
-  dislikedIds: number[];
+  liked: LikedEntry[];
+  disliked: LikedEntry[];
 };
 
 export function emptyProfile(): TasteProfile {
-  return { likedGenres: {}, dislikedGenres: {}, likedIds: [], dislikedIds: [] };
+  return { likedGenres: {}, dislikedGenres: {}, liked: [], disliked: [] };
+}
+
+function sanitizeEntries(raw: unknown): LikedEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(
+      (e): e is LikedEntry =>
+        e && typeof e.id === "number" && typeof e.title === "string"
+    )
+    .slice(-MAX_ENTRIES);
 }
 
 export function decodeProfile(raw: string | undefined | null): TasteProfile {
@@ -25,8 +37,8 @@ export function decodeProfile(raw: string | undefined | null): TasteProfile {
         parsed.dislikedGenres && typeof parsed.dislikedGenres === "object"
           ? parsed.dislikedGenres
           : {},
-      likedIds: Array.isArray(parsed.likedIds) ? parsed.likedIds.slice(-MAX_IDS) : [],
-      dislikedIds: Array.isArray(parsed.dislikedIds) ? parsed.dislikedIds.slice(-MAX_IDS) : [],
+      liked: sanitizeEntries(parsed.liked),
+      disliked: sanitizeEntries(parsed.disliked),
     };
   } catch {
     return emptyProfile();
@@ -39,14 +51,14 @@ export function encodeProfile(profile: TasteProfile): string {
 
 export function applyFeedback(
   profile: TasteProfile,
-  movie: { id: number; genreIds: number[] },
+  movie: { id: number; title: string; genreIds: number[] },
   liked: boolean
 ): TasteProfile {
   const next: TasteProfile = {
     likedGenres: { ...profile.likedGenres },
     dislikedGenres: { ...profile.dislikedGenres },
-    likedIds: [...profile.likedIds],
-    dislikedIds: [...profile.dislikedIds],
+    liked: [...profile.liked],
+    disliked: [...profile.disliked],
   };
 
   const genreBucket = liked ? next.likedGenres : next.dislikedGenres;
@@ -54,12 +66,13 @@ export function applyFeedback(
     genreBucket[gid] = (genreBucket[gid] ?? 0) + 1;
   }
 
-  const idBucket = liked ? next.likedIds : next.dislikedIds;
-  const oppositeBucket = liked ? next.dislikedIds : next.likedIds;
-  const oppIdx = oppositeBucket.indexOf(movie.id);
+  const entry: LikedEntry = { id: movie.id, title: movie.title };
+  const bucket = liked ? next.liked : next.disliked;
+  const oppositeBucket = liked ? next.disliked : next.liked;
+  const oppIdx = oppositeBucket.findIndex((e) => e.id === movie.id);
   if (oppIdx !== -1) oppositeBucket.splice(oppIdx, 1);
-  if (!idBucket.includes(movie.id)) idBucket.push(movie.id);
-  if (idBucket.length > MAX_IDS) idBucket.splice(0, idBucket.length - MAX_IDS);
+  if (!bucket.some((e) => e.id === movie.id)) bucket.push(entry);
+  if (bucket.length > MAX_ENTRIES) bucket.splice(0, bucket.length - MAX_ENTRIES);
 
   return next;
 }

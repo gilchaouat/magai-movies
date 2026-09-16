@@ -31,12 +31,12 @@ export default function ResultsClient({
     const current = readTasteProfile();
     const next = applyFeedback(
       current,
-      { id: movie.id, genreIds: movie.genreIds },
+      { id: movie.id, title: movie.title, genreIds: movie.genreIds },
       liked
     );
     writeTasteProfile(next);
-    setLikedIds(new Set(next.likedIds));
-    setDislikedIds(new Set(next.dislikedIds));
+    setLikedIds(new Set(next.liked.map((e) => e.id)));
+    setDislikedIds(new Set(next.disliked.map((e) => e.id)));
   }
 
   return (
