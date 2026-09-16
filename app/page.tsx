@@ -7,7 +7,7 @@ import TasteSummary from "@/components/TasteSummary";
 import { getRecommendations } from "@/lib/recommend";
 import { TmdbConfigError } from "@/lib/tmdb";
 import { activeAiProvider } from "@/lib/ai";
-import { TASTE_COOKIE, decodeProfile, topLikedGenreLabels } from "@/lib/taste";
+import { TASTE_COOKIE, decodeProfile } from "@/lib/taste";
 
 type SearchParams = Promise<{ q?: string | string[] }>;
 
@@ -59,18 +59,17 @@ export default async function Home({
             כתוב מה בא לך לראות — ונבנה לך רשימה אישית.
           </p>
         </div>
-        <div className="mt-10">
-          <PromptForm initialQuery={q} />
-        </div>
+        {!q && (
+          <div className="mt-10">
+            <PromptForm initialQuery={q} />
+          </div>
+        )}
         <TasteSummary />
       </section>
 
       {q && (
         <section className="px-6 pb-24">
           <div className="mx-auto max-w-6xl">
-            <h2 className="mb-8 text-center font-serif text-2xl font-bold text-ink sm:text-3xl">
-              הרשימה שנבנתה בשבילך
-            </h2>
             <Suspense fallback={<ResultsSkeleton />}>
               <Results query={q} />
             </Suspense>
@@ -124,7 +123,6 @@ async function Results({ query }: { query: string }) {
       initialResult={result}
       initialLikedIds={profile.liked.map((e) => e.id)}
       initialDislikedIds={profile.disliked.map((e) => e.id)}
-      initialTasteLabels={result.usedTasteDefault ? topLikedGenreLabels(profile) : []}
       aiConfigured={!!activeAiProvider()}
     />
   );

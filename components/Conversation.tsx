@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { RecommendResult } from "@/lib/types";
 import { readTasteProfile } from "@/lib/tasteClient";
-import { topLikedGenreLabels } from "@/lib/taste";
 import ResultsClient from "./ResultsClient";
 
 type Turn = {
@@ -11,7 +10,6 @@ type Turn = {
   result: RecommendResult;
   initialLikedIds: number[];
   initialDislikedIds: number[];
-  tasteLabels: string[];
 };
 
 export default function Conversation({
@@ -19,24 +17,16 @@ export default function Conversation({
   initialResult,
   initialLikedIds,
   initialDislikedIds,
-  initialTasteLabels,
   aiConfigured,
 }: {
   initialQuery: string;
   initialResult: RecommendResult;
   initialLikedIds: number[];
   initialDislikedIds: number[];
-  initialTasteLabels: string[];
   aiConfigured: boolean;
 }) {
   const [turns, setTurns] = useState<Turn[]>([
-    {
-      query: initialQuery,
-      result: initialResult,
-      initialLikedIds,
-      initialDislikedIds,
-      tasteLabels: initialTasteLabels,
-    },
+    { query: initialQuery, result: initialResult, initialLikedIds, initialDislikedIds },
   ]);
   const [followUp, setFollowUp] = useState("");
   const [pending, setPending] = useState(false);
@@ -66,7 +56,6 @@ export default function Conversation({
           result,
           initialLikedIds: profile.liked.map((e) => e.id),
           initialDislikedIds: profile.disliked.map((e) => e.id),
-          tasteLabels: result.usedTasteDefault ? topLikedGenreLabels(profile) : [],
         },
       ]);
       setFollowUp("");
@@ -79,13 +68,9 @@ export default function Conversation({
 
   return (
     <div className="space-y-10">
-      {turns.map((turn, i) => (
-        <TurnView key={i} turn={turn} isFirst={i === 0} aiConfigured={aiConfigured} />
-      ))}
-
       <form
         onSubmit={handleSubmit}
-        className="flex flex-col gap-3 rounded-2xl bg-white p-3 shadow-lg shadow-black/5 ring-1 ring-black/5 sm:flex-row"
+        className="flex flex-col items-stretch gap-3 rounded-2xl bg-white p-2.5 shadow-lg shadow-black/5 ring-1 ring-black/5 sm:flex-row"
       >
         <input
           type="text"
@@ -93,18 +78,23 @@ export default function Conversation({
           onChange={(e) => setFollowUp(e.target.value)}
           placeholder="המשך לשוחח... למשל: קצת יותר קליל, או תראה לי עוד כאלה"
           disabled={pending}
+          autoComplete="off"
           dir="rtl"
-          className="min-w-0 flex-1 rounded-xl bg-transparent px-4 py-3 text-base text-ink placeholder:text-ink/40 outline-none disabled:opacity-60"
+          className="min-w-0 flex-1 rounded-xl bg-transparent px-4 py-3.5 text-base text-ink placeholder:text-ink/40 outline-none disabled:opacity-60 sm:text-lg"
         />
         <button
           type="submit"
           disabled={pending || !followUp.trim()}
-          className="shrink-0 rounded-xl bg-accent px-6 py-3 text-base font-bold text-white transition hover:bg-accent-dark disabled:opacity-50"
+          className="shrink-0 rounded-xl bg-accent px-6 py-3.5 text-base font-bold text-white transition hover:bg-accent-dark disabled:cursor-not-allowed disabled:opacity-50 sm:text-lg"
         >
           {pending ? "חושב..." : "שלח"}
         </button>
       </form>
       {error && <p className="text-center text-sm text-accent">{error}</p>}
+
+      {turns.map((turn, i) => (
+        <TurnView key={i} turn={turn} isFirst={i === 0} aiConfigured={aiConfigured} />
+      ))}
     </div>
   );
 }
@@ -129,14 +119,9 @@ function TurnView({
       )}
 
       <div className="mb-6 flex justify-start">
-        <div className="max-w-lg rounded-2xl rounded-tr-sm bg-accent/10 px-4 py-2.5 text-sm text-ink">
-          <p>{turn.result.preferences.assistantReply}</p>
-          {turn.tasteLabels.length > 0 && (
-            <p className="mt-1 text-xs text-ink/50">
-              בהתבסס על מה שאהבת בעבר: {turn.tasteLabels.join(", ")}
-            </p>
-          )}
-        </div>
+        <p className="max-w-lg rounded-2xl rounded-tr-sm bg-accent/10 px-4 py-2.5 text-sm text-ink">
+          {turn.result.preferences.assistantReply}
+        </p>
       </div>
 
       {!turn.result.usedAI && (

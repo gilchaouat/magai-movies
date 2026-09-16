@@ -14,7 +14,13 @@ import {
   type TmdbDiscoverMovie,
 } from "./tmdb";
 import type { Preferences, Recommendation, RecommendResult } from "./types";
-import { emptyProfile, profileSummaryForAI, topLikedGenreIds, type TasteProfile } from "./taste";
+import {
+  emptyProfile,
+  profileSummaryForAI,
+  topLikedGenreIds,
+  topLikedGenreLabels,
+  type TasteProfile,
+} from "./taste";
 
 const RESULT_COUNT = 8;
 const CANDIDATE_POOL = 16;
@@ -107,13 +113,15 @@ async function fetchCandidatePool(
   return { results: deduped.slice(0, CANDIDATE_POOL), usedTasteDefault };
 }
 
-function templateWhy(prefs: Preferences, m: {
-  genres: string[];
-  rating: number | null;
-  runtime: number | null;
-}): string {
+function templateWhy(
+  prefs: Preferences,
+  m: { genres: string[]; rating: number | null; runtime: number | null },
+  tasteLabels: string[]
+): string {
   const bits: string[] = [];
   if (prefs.genres.length) bits.push(`תואם לחיפוש שלך אחר ${prefs.genres.join("/")}`);
+  else if (tasteLabels.length)
+    bits.push(`מבוסס על הז'אנרים שאהבת בעבר (${tasteLabels.join(", ")})`);
   if (prefs.maxRuntime && m.runtime) bits.push(`אורך של ${m.runtime} דקות עומד בדרישת הזמן`);
   if (prefs.highlyRated && m.rating) bits.push(`דירוג גבוה של ${m.rating.toFixed(1)}/10`);
   if (prefs.excludeGenres.length) bits.push(`ללא ${prefs.excludeGenres.join("/")}`);
@@ -185,7 +193,10 @@ export async function getRecommendations(
       };
     });
 
-  const prefsSummary = preferencesToSummary(preferences);
+  const tasteLabels = usedTasteDefault ? topLikedGenreLabels(profile) : [];
+  const prefsSummary =
+    preferencesToSummary(preferences) +
+    (tasteLabels.length ? ` | הותאם לפי טעם קודם: ${tasteLabels.join(", ")}` : "");
 
   let blurbs: Awaited<ReturnType<typeof writeEditorialBlurbs>> = {};
   if (usedAI) {
@@ -216,7 +227,7 @@ export async function getRecommendations(
       genreIds: m.genreIds,
       rating: m.rating,
       overview: blurb?.overview || m.overview || "אין תקציר זמין לסרט זה.",
-      whyItMatches: blurb?.why || templateWhy(preferences, m),
+      whyItMatches: blurb?.why || templateWhy(preferences, m, tasteLabels),
       posterUrl: m.posterUrl,
       backdropUrl: m.backdropUrl,
       trailerUrl: m.trailerUrl,
