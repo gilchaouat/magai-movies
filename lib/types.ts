@@ -35,4 +35,5 @@ export type RecommendResult = {
   recommendations: Recommendation[];
   usedAI: boolean;
   aiError: string | null;
+  debugTrace: string[];
 };

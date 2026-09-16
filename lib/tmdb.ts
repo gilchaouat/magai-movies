@@ -75,7 +75,8 @@ export type DiscoverParams = {
 };
 
 export async function discoverMovies(
-  opts: DiscoverParams
+  opts: DiscoverParams,
+  trace?: string[]
 ): Promise<TmdbDiscoverMovie[]> {
   const params: Record<string, string> = {
     language: "he-IL",
@@ -98,11 +99,12 @@ export async function discoverMovies(
     params.with_watch_monetization_types = "flatrate";
   }
 
-  console.error("[tmdb] discover params:", JSON.stringify(params));
+  trace?.push(`GET /discover/movie ${JSON.stringify(params)}`);
   const data = await tmdbFetch<{ results: TmdbDiscoverMovie[] }>(
     "/discover/movie",
     params
   );
+  trace?.push(`  -> ${data.results?.length ?? 0} raw results, total_results=${(data as { total_results?: number }).total_results ?? "?"}`);
   return data.results ?? [];
 }
 
