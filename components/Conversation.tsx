@@ -66,8 +66,10 @@ export default function Conversation({
     }
   }
 
+  const latestTurn = turns[turns.length - 1];
+
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <form
         onSubmit={handleSubmit}
         className="flex flex-col items-stretch gap-3 rounded-2xl bg-white p-2.5 shadow-lg shadow-black/5 ring-1 ring-black/5 sm:flex-row"
@@ -92,53 +94,35 @@ export default function Conversation({
       </form>
       {error && <p className="text-center text-sm text-accent">{error}</p>}
 
-      {turns.map((turn, i) => (
-        <TurnView key={i} turn={turn} isFirst={i === 0} aiConfigured={aiConfigured} />
-      ))}
-    </div>
-  );
-}
-
-function TurnView({
-  turn,
-  isFirst,
-  aiConfigured,
-}: {
-  turn: Turn;
-  isFirst: boolean;
-  aiConfigured: boolean;
-}) {
-  return (
-    <div>
-      {!isFirst && (
-        <div className="mb-4 flex justify-end">
-          <p className="max-w-md rounded-2xl rounded-tl-sm bg-ink px-4 py-2.5 text-sm text-white">
-            {turn.query}
-          </p>
+      {turns.length > 1 && (
+        <div className="flex flex-wrap justify-end gap-2">
+          {turns.map((turn, i) => (
+            <p
+              key={i}
+              className="rounded-2xl rounded-tl-sm bg-ink px-4 py-2 text-sm text-white"
+            >
+              {turn.query}
+            </p>
+          ))}
         </div>
       )}
 
-      <div className="mb-6 flex justify-start">
-        <p className="max-w-lg rounded-2xl rounded-tr-sm bg-accent/10 px-4 py-2.5 text-sm text-ink">
-          {turn.result.preferences.assistantReply}
-        </p>
-      </div>
-
-      {!turn.result.usedAI && (
-        <p className="mb-6 text-center text-xs text-ink/40">
+      {!latestTurn.result.usedAI && (
+        <p className="text-center text-xs text-ink/40">
           {aiConfigured
             ? "מנוע ה-AI לא היה זמין כרגע, כך שההמלצות מבוססות על חיפוש חכם ב-TMDB בלבד."
             : "לא הוגדר מפתח AI (Anthropic/OpenAI) — ההמלצות מבוססות על חיפוש חכם ב-TMDB בלבד."}
         </p>
       )}
 
-      {turn.result.recommendations.length === 0 ? (
+      {latestTurn.result.recommendations.length === 0 ? (
         <p className="text-center text-ink/50">לא מצאתי סרטים מתאימים לבקשה הזו.</p>
       ) : (
         <ResultsClient
-          recommendations={turn.result.recommendations}
-          initialLikedIds={turn.initialLikedIds}
-          initialDislikedIds={turn.initialDislikedIds}
+          key={turns.length}
+          recommendations={latestTurn.result.recommendations}
+          initialLikedIds={latestTurn.initialLikedIds}
+          initialDislikedIds={latestTurn.initialDislikedIds}
         />
       )}
     </div>

@@ -9,10 +9,7 @@ function isPreferences(value: unknown): value is Preferences {
   if (!value || typeof value !== "object") return false;
   const p = value as Record<string, unknown>;
   return (
-    Array.isArray(p.genres) &&
-    Array.isArray(p.excludeGenres) &&
-    typeof p.summary === "string" &&
-    typeof p.assistantReply === "string"
+    Array.isArray(p.genres) && Array.isArray(p.excludeGenres) && typeof p.summary === "string"
   );
 }
 

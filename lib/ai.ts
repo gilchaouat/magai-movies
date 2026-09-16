@@ -122,10 +122,6 @@ function coercePreferences(raw: unknown, fallbackSummary: string): Preferences {
       typeof r.summary === "string" && r.summary.trim()
         ? r.summary.trim()
         : fallbackSummary,
-    assistantReply:
-      typeof r.assistant_reply === "string" && r.assistant_reply.trim()
-        ? r.assistant_reply.trim()
-        : `מצאתי לך רשימה שמתאימה ל-"${fallbackSummary}".`,
   };
 }
 
@@ -150,7 +146,6 @@ export function mergeFollowUpPreferences(
     tone: followUp.tone ?? previous.tone,
     audience: followUp.audience ?? previous.audience,
     summary: followUp.summary,
-    assistantReply: followUp.assistantReply,
   };
 }
 
@@ -167,10 +162,7 @@ Respond with ONLY a JSON object, no prose, matching exactly this shape:
   "highly_rated": boolean,     // true if the user wants high quality / highly rated / best
   "tone": string|null,         // short descriptor, e.g. "smart", "light", "dark", "feel-good"
   "audience": string|null,     // e.g. "couple", "family", "teenagers", "solo"
-  "summary": string,           // one short Hebrew sentence paraphrasing the request
-  "assistant_reply": string    // one short, warm Hebrew sentence replying as if in a chat,
-                                // acknowledging what you understood (e.g. "מצאתי לך כמה
-                                // קלאסיקות אקשן קלילות לערב זוגי!"). Never generic ("הנה התוצאות").
+  "summary": string            // one short Hebrew sentence paraphrasing the request
 }
 
 Rules:
@@ -182,8 +174,7 @@ Rules:
 - Never invent genres outside the allowed list.
 - If the message is a follow-up on a previous conversation turn (context will be given), carry over
   anything the follow-up doesn't contradict — e.g. "no, shorter" should keep the prior genres and
-  only change max_runtime — and make assistant_reply acknowledge the *change* specifically
-  (e.g. "בטח, הנה גרסאות קצרות יותר מאותו הז'אנר").`;
+  only change max_runtime.`;
 
 const HEURISTIC_GENRE_TERMS: { key: string; terms: string[] }[] = [
   { key: "thriller", terms: ["מותחן", "מתח", "thriller"] },
@@ -252,7 +243,6 @@ function heuristicParse(query: string): Preferences {
     tone,
     audience,
     summary: query,
-    assistantReply: `מצאתי לך רשימה שמתאימה ל-"${query}".`,
   };
 }
 

@@ -9,9 +9,6 @@ export type Preferences = {
   tone: string | null;
   audience: string | null;
   summary: string;
-  // A short, friendly Hebrew sentence acknowledging the request conversationally —
-  // what turns a search box into something that feels like it's replying to you.
-  assistantReply: string;
 };
 
 export type Recommendation = {
