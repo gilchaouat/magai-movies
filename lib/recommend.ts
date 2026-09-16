@@ -14,6 +14,7 @@ import {
   type TmdbDiscoverMovie,
 } from "./tmdb";
 import type { Preferences, Recommendation, RecommendResult } from "./types";
+import { emptyProfile, profileSummaryForAI, topLikedGenreIds, type TasteProfile } from "./taste";
 
 const RESULT_COUNT = 8;
 const CANDIDATE_POOL = 16;
@@ -36,8 +37,15 @@ function preferencesToSummary(p: Preferences): string {
   return parts.length ? parts.join(" | ") : p.summary;
 }
 
-async function fetchCandidatePool(prefs: Preferences): Promise<TmdbDiscoverMovie[]> {
-  const withGenres = prefs.genres.map((g) => GENRE_IDS[g]).filter(Boolean);
+async function fetchCandidatePool(
+  prefs: Preferences,
+  profile: TasteProfile
+): Promise<TmdbDiscoverMovie[]> {
+  const explicitGenres = prefs.genres.map((g) => GENRE_IDS[g]).filter(Boolean);
+  // When the request doesn't name a genre, lean on what this device has
+  // previously liked instead of pure popularity — this is what lets someone
+  // stop re-describing their mood every time.
+  const withGenres = explicitGenres.length ? explicitGenres : topLikedGenreIds(profile);
   const withoutGenres = prefs.excludeGenres.map((g) => GENRE_IDS[g]).filter(Boolean);
 
   const baseParams = {
@@ -87,8 +95,9 @@ async function fetchCandidatePool(prefs: Preferences): Promise<TmdbDiscoverMovie
   }
 
   const seen = new Set<number>();
+  const disliked = new Set(profile.dislikedIds);
   const deduped = results.filter((m) => {
-    if (seen.has(m.id) || !m.poster_path) return false;
+    if (seen.has(m.id) || !m.poster_path || disliked.has(m.id)) return false;
     seen.add(m.id);
     return true;
   });
@@ -110,12 +119,18 @@ function templateWhy(prefs: Preferences, m: {
   return bits.join(" · ");
 }
 
-export async function getRecommendations(query: string): Promise<RecommendResult> {
-  const { preferences, usedAI, aiError } = await parsePromptToPreferences(query);
+export async function getRecommendations(
+  query: string,
+  profile: TasteProfile = emptyProfile()
+): Promise<RecommendResult> {
+  const { preferences, usedAI, aiError } = await parsePromptToPreferences(
+    query,
+    profileSummaryForAI(profile)
+  );
 
   let candidates: TmdbDiscoverMovie[];
   try {
-    candidates = await fetchCandidatePool(preferences);
+    candidates = await fetchCandidatePool(preferences, profile);
   } catch (err) {
     if (err instanceof TmdbConfigError) throw err;
     throw new Error(

@@ -219,7 +219,10 @@ function heuristicParse(query: string): Preferences {
   };
 }
 
-export async function parsePromptToPreferences(query: string): Promise<{
+export async function parsePromptToPreferences(
+  query: string,
+  tasteSummary?: string | null
+): Promise<{
   preferences: Preferences;
   usedAI: boolean;
   aiError: string | null;
@@ -229,7 +232,10 @@ export async function parsePromptToPreferences(query: string): Promise<{
     return { preferences: heuristicParse(query), usedAI: false, aiError: null };
   }
   try {
-    const raw = await callLLM(PREFS_SYSTEM_PROMPT, query);
+    const user = tasteSummary
+      ? `${query}\n\n(Background only, do not let this override an explicit request: ${tasteSummary}.)`
+      : query;
+    const raw = await callLLM(PREFS_SYSTEM_PROMPT, user);
     const json = extractJson(raw);
     return {
       preferences: coercePreferences(json, query),

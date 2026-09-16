@@ -3,19 +3,41 @@
 import { useMemo, useState } from "react";
 import { RESULT_FILTERS } from "@/lib/config";
 import type { Recommendation } from "@/lib/types";
+import { applyFeedback } from "@/lib/taste";
+import { readTasteProfile, writeTasteProfile } from "@/lib/tasteClient";
 import MovieCard from "./MovieCard";
 
 export default function ResultsClient({
   recommendations,
+  initialLikedIds,
+  initialDislikedIds,
 }: {
   recommendations: Recommendation[];
+  initialLikedIds: number[];
+  initialDislikedIds: number[];
 }) {
   const [activeFilter, setActiveFilter] = useState<number | null>(null);
+  const [likedIds, setLikedIds] = useState(() => new Set(initialLikedIds));
+  const [dislikedIds, setDislikedIds] = useState(() => new Set(initialDislikedIds));
 
   const filtered = useMemo(() => {
     if (activeFilter === null) return recommendations;
     return recommendations.filter((m) => m.genreIds.includes(activeFilter));
   }, [recommendations, activeFilter]);
+
+  function handleFeedback(movie: Recommendation, liked: boolean) {
+    // Read fresh from the cookie (not just this render's state) so feedback
+    // given on a previous search isn't clobbered by a stale in-memory copy.
+    const current = readTasteProfile();
+    const next = applyFeedback(
+      current,
+      { id: movie.id, genreIds: movie.genreIds },
+      liked
+    );
+    writeTasteProfile(next);
+    setLikedIds(new Set(next.likedIds));
+    setDislikedIds(new Set(next.dislikedIds));
+  }
 
   return (
     <div>
@@ -45,7 +67,14 @@ export default function ResultsClient({
       ) : (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {filtered.map((movie) => (
-            <MovieCard key={movie.id} movie={movie} />
+            <MovieCard
+              key={movie.id}
+              movie={movie}
+              isLiked={likedIds.has(movie.id)}
+              isDisliked={dislikedIds.has(movie.id)}
+              onLike={() => handleFeedback(movie, true)}
+              onDislike={() => handleFeedback(movie, false)}
+            />
           ))}
         </div>
       )}

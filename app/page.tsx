@@ -1,10 +1,12 @@
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import type { Metadata } from "next";
 import PromptForm from "@/components/PromptForm";
 import ResultsClient from "@/components/ResultsClient";
 import { getRecommendations } from "@/lib/recommend";
 import { TmdbConfigError } from "@/lib/tmdb";
 import { activeAiProvider } from "@/lib/ai";
+import { TASTE_COOKIE, decodeProfile } from "@/lib/taste";
 
 type SearchParams = Promise<{ q?: string | string[] }>;
 
@@ -87,9 +89,12 @@ async function Results({ query }: { query: string }) {
     );
   }
 
+  const cookieStore = await cookies();
+  const profile = decodeProfile(cookieStore.get(TASTE_COOKIE)?.value);
+
   let result;
   try {
-    result = await getRecommendations(query);
+    result = await getRecommendations(query, profile);
   } catch (err) {
     if (err instanceof TmdbConfigError) {
       return <ErrorState title="חסר מפתח TMDB" message={err.message} />;
@@ -120,7 +125,11 @@ async function Results({ query }: { query: string }) {
             : "לא הוגדר מפתח AI (Anthropic/OpenAI) — ההמלצות מבוססות על חיפוש חכם ב-TMDB בלבד."}
         </p>
       )}
-      <ResultsClient recommendations={result.recommendations} />
+      <ResultsClient
+        recommendations={result.recommendations}
+        initialLikedIds={profile.likedIds}
+        initialDislikedIds={profile.dislikedIds}
+      />
     </>
   );
 }
