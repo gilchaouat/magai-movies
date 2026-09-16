@@ -111,6 +111,7 @@ export type TmdbVideo = {
   type: string;
   official: boolean;
   name: string;
+  published_at?: string;
 };
 
 export type TmdbWatchProviders = {
@@ -126,14 +127,23 @@ export type TmdbWatchProviders = {
 export type TmdbMovieDetail = TmdbDiscoverMovie & {
   runtime: number | null;
   genres: { id: number; name: string }[];
-  videos?: { results: TmdbVideo[] };
   "watch/providers"?: TmdbWatchProviders;
 };
 
 export async function getMovieDetail(id: number): Promise<TmdbMovieDetail> {
   return tmdbFetch<TmdbMovieDetail>(`/movie/${id}`, {
     language: "he-IL",
-    append_to_response: "videos,watch/providers",
+    append_to_response: "watch/providers",
+  });
+}
+
+// TMDB scopes the `videos` append strictly to the request's `language`, and
+// almost no titles have Hebrew-tagged YouTube trailers — that left most cards
+// with no trailer at all. Official trailers are near-universally tagged
+// en-US, so fetch videos with that language regardless of the page's locale.
+export async function getMovieVideos(id: number): Promise<{ results: TmdbVideo[] }> {
+  return tmdbFetch<{ results: TmdbVideo[] }>(`/movie/${id}/videos`, {
+    language: "en-US",
   });
 }
 
@@ -143,8 +153,13 @@ export function pickTrailerUrl(videos?: { results: TmdbVideo[] }): string | null
     (v) => v.site === "YouTube" && v.type === "Trailer" && v.key
   );
   if (!candidates.length) return null;
-  const official = candidates.find((v) => v.official) ?? candidates[0];
-  return `https://www.youtube.com/watch?v=${official.key}`;
+  // Prefer official trailers, and the most recently published among them —
+  // newer uploads are less likely to have since been taken down on YouTube.
+  const byRecency = (a: TmdbVideo, b: TmdbVideo) =>
+    (b.published_at ?? "").localeCompare(a.published_at ?? "");
+  const official = candidates.filter((v) => v.official).sort(byRecency);
+  const best = official[0] ?? [...candidates].sort(byRecency)[0];
+  return `https://www.youtube.com/watch?v=${best.key}`;
 }
 
 export function isVerifiedOnNetflix(providers?: TmdbWatchProviders): boolean {

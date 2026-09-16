@@ -4,6 +4,7 @@ import {
   discoverMovies,
   genreNamesFromIds,
   getMovieDetail,
+  getMovieVideos,
   isVerifiedOnNetflix,
   netflixSearchUrl,
   pickTrailerUrl,
@@ -127,7 +128,11 @@ export async function getRecommendations(query: string): Promise<RecommendResult
   const details = await Promise.all(
     top.map(async (c) => {
       try {
-        return await getMovieDetail(c.id);
+        const [detail, videos] = await Promise.all([
+          getMovieDetail(c.id),
+          getMovieVideos(c.id).catch(() => ({ results: [] })),
+        ]);
+        return { detail, videos };
       } catch {
         return null;
       }
@@ -137,7 +142,7 @@ export async function getRecommendations(query: string): Promise<RecommendResult
   const enriched = details
     .map((d, i) => ({ d, base: top[i] }))
     .filter((x): x is { d: NonNullable<typeof x.d>; base: TmdbDiscoverMovie } => !!x.d)
-    .map(({ d, base }) => {
+    .map(({ d: { detail: d, videos }, base }) => {
       const genreNames = d.genres?.length
         ? d.genres.map((g) => g.name)
         : genreNamesFromIds(base.genre_ids);
@@ -152,7 +157,7 @@ export async function getRecommendations(query: string): Promise<RecommendResult
         overview: d.overview || base.overview || "",
         posterUrl: posterUrl(d.poster_path),
         backdropUrl: backdropUrl(d.backdrop_path),
-        trailerUrl: pickTrailerUrl(d.videos),
+        trailerUrl: pickTrailerUrl(videos),
         netflixVerified: isVerifiedOnNetflix(d["watch/providers"]),
         netflixUrl: netflixSearchUrl(d.title),
       };
