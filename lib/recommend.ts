@@ -55,10 +55,10 @@ async function fetchCandidatePool(prefs: Preferences): Promise<TmdbDiscoverMovie
   // without it, discover happily returns movies still in theaters or on other
   // platforms entirely.
   let results = await discoverMovies({ ...baseParams, netflixOnly: true, page: 1 });
-  console.log("[recommend] netflixOnly page1:", results.length);
+  console.error("[recommend] netflixOnly page1:", results.length);
   if (results.length < CANDIDATE_POOL) {
     const page2 = await discoverMovies({ ...baseParams, netflixOnly: true, page: 2 });
-    console.log("[recommend] netflixOnly page2:", page2.length);
+    console.error("[recommend] netflixOnly page2:", page2.length);
     results = [...results, ...page2];
   }
 
@@ -72,7 +72,7 @@ async function fetchCandidatePool(prefs: Preferences): Promise<TmdbDiscoverMovie
       netflixOnly: true,
       page: 1,
     });
-    console.log("[recommend] fallback drop-exclusions netflixOnly:", results.length);
+    console.error("[recommend] fallback drop-exclusions netflixOnly:", results.length);
   }
   if (results.length < 4 && (prefs.maxRuntime || prefs.minYear)) {
     results = await discoverMovies({
@@ -83,11 +83,11 @@ async function fetchCandidatePool(prefs: Preferences): Promise<TmdbDiscoverMovie
       netflixOnly: true,
       page: 1,
     });
-    console.log("[recommend] fallback drop-runtime/year netflixOnly:", results.length);
+    console.error("[recommend] fallback drop-runtime/year netflixOnly:", results.length);
   }
   if (results.length < 4) {
     results = await discoverMovies({ ...baseParams, page: 1 });
-    console.log("[recommend] fallback DROPPED netflixOnly entirely:", results.length);
+    console.error("[recommend] fallback DROPPED netflixOnly entirely:", results.length);
   }
 
   const seen = new Set<number>();

@@ -98,7 +98,7 @@ export async function discoverMovies(
     params.with_watch_monetization_types = "flatrate";
   }
 
-  console.log("[tmdb] discover params:", JSON.stringify(params));
+  console.error("[tmdb] discover params:", JSON.stringify(params));
   const data = await tmdbFetch<{ results: TmdbDiscoverMovie[] }>(
     "/discover/movie",
     params
