@@ -215,6 +215,10 @@ export async function getRecommendations(
   // confident about, so a thin/no-op result never means a blank page.
   let top = candidates.slice(0, RESULT_COUNT);
   let preselectedBlurbs: BlurbOutput = {};
+  // TEMPORARY DEBUG — remove once the blurb/selection failures are diagnosed
+  let selectionDebugError: string | null = null;
+  let blurbDebugError: string | null = null;
+  let selectedCountDebug: number | null = null;
   if (usedAI) {
     const candidateInputs: CandidateInput[] = candidates.map((c) => ({
       id: c.id,
@@ -230,7 +234,9 @@ export async function getRecommendations(
       candidateInputs,
       RESULT_COUNT
     );
-    if (selection && selection.selectedIds.length > 0) {
+    selectionDebugError = selection.error;
+    selectedCountDebug = selection.selectedIds.length;
+    if (selection.selectedIds.length > 0) {
       const byId = new Map(candidates.map((c) => [c.id, c]));
       top = selection.selectedIds
         .map((id) => byId.get(id))
@@ -279,7 +285,7 @@ export async function getRecommendations(
 
   let blurbs: BlurbOutput = preselectedBlurbs;
   if (usedAI && Object.keys(preselectedBlurbs).length === 0) {
-    blurbs = await writeEditorialBlurbs(
+    const blurbResult = await writeEditorialBlurbs(
       query,
       prefsSummary,
       enriched.map((m) => ({
@@ -292,6 +298,8 @@ export async function getRecommendations(
         genres: m.genres,
       }))
     );
+    blurbs = blurbResult.blurbs;
+    blurbDebugError = blurbResult.error;
   }
 
   const recommendations: Recommendation[] = enriched.map((m, i) => {
@@ -323,5 +331,7 @@ export async function getRecommendations(
     aiError,
     usedTasteDefault,
     relaxedSearch,
+    // TEMPORARY DEBUG — remove once the blurb/selection failures are diagnosed
+    debugAi: { selectionDebugError, blurbDebugError, selectedCountDebug },
   };
 }

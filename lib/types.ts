@@ -43,4 +43,10 @@ export type RecommendResult = {
   // came up too thin and had to loosen constraints to find enough movies —
   // lets the UI admit the results are a broader match, not a perfect one.
   relaxedSearch: boolean;
+  // TEMPORARY DEBUG — remove once the blurb/selection failures are diagnosed
+  debugAi: {
+    selectionDebugError: string | null;
+    blurbDebugError: string | null;
+    selectedCountDebug: number | null;
+  };
 };

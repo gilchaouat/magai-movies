@@ -156,6 +156,15 @@ export default function Conversation({
           לא נמצאו הרבה סרטים שמתאימים בול לבקשה, אז הרחבנו קצת את החיפוש.
         </p>
       )}
+      {/* TEMPORARY DEBUG — remove once the blurb/selection failures are diagnosed */}
+      <p
+        dir="ltr"
+        className="mx-auto max-w-2xl break-words rounded-lg bg-amber-50 p-3 text-center text-xs text-amber-800"
+      >
+        DEBUG selectedCount={String(latestTurn.result.debugAi.selectedCountDebug)}{" "}
+        selectionError={latestTurn.result.debugAi.selectionDebugError ?? "null"} blurbError=
+        {latestTurn.result.debugAi.blurbDebugError ?? "null"}
+      </p>
 
       {latestTurn.result.recommendations.length === 0 ? (
         <p className="text-center text-ink/50">לא מצאתי סרטים מתאימים לבקשה הזו.</p>

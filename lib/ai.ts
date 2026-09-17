@@ -318,8 +318,8 @@ export async function writeEditorialBlurbs(
   query: string,
   preferencesSummary: string,
   movies: BlurbInput[]
-): Promise<BlurbOutput> {
-  if (!activeAiProvider() || movies.length === 0) return {};
+): Promise<{ blurbs: BlurbOutput; error: string | null }> {
+  if (!activeAiProvider() || movies.length === 0) return { blurbs: {}, error: null };
   const system = `You are an editorial movie critic writing for a premium Hebrew recommendation site called "MAGAI Movies".
 For each movie given, write:
 - "overview": a punchy 1-2 sentence Hebrew editorial description (spoiler-free).
@@ -351,9 +351,9 @@ Use natural, elegant Hebrew. Do not invent plot details not implied by the provi
         out[m.id] = { overview: entry.overview, why: entry.why };
       }
     }
-    return out;
-  } catch {
-    return {};
+    return { blurbs: out, error: null };
+  } catch (err) {
+    return { blurbs: {}, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -393,8 +393,9 @@ export async function selectRelevantAndWriteBlurbs(
   preferencesSummary: string,
   candidates: CandidateInput[],
   limit: number
-): Promise<{ selectedIds: number[]; blurbs: BlurbOutput } | null> {
-  if (!activeAiProvider() || candidates.length === 0) return null;
+): Promise<{ selectedIds: number[]; blurbs: BlurbOutput; error: string | null }> {
+  if (!activeAiProvider() || candidates.length === 0)
+    return { selectedIds: [], blurbs: {}, error: null };
   const user = JSON.stringify({
     user_request: query,
     interpreted_preferences: preferencesSummary,
@@ -424,8 +425,8 @@ export async function selectRelevantAndWriteBlurbs(
       selectedIds.push(item.id);
       blurbs[item.id] = { overview: item.overview, why: item.why };
     }
-    return { selectedIds, blurbs };
-  } catch {
-    return null;
+    return { selectedIds, blurbs, error: null };
+  } catch (err) {
+    return { selectedIds: [], blurbs: {}, error: err instanceof Error ? err.message : String(err) };
   }
 }
