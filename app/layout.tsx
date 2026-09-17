@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Heebo, Frank_Ruhl_Libre } from "next/font/google";
 import "./globals.css";
 
@@ -17,6 +17,10 @@ const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
+export const viewport: Viewport = {
+  themeColor: "#17140f",
+};
+
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
@@ -31,6 +35,14 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
+  },
+  // Lets someone add this to their iPhone home screen (Safari share menu ->
+  // "Add to Home Screen") and have it open full-screen like a real app,
+  // instead of as another browser tab.
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "MAGAI Movies",
   },
 };
 
