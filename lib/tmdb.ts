@@ -82,6 +82,9 @@ export type DiscoverParams = {
   // to genuinely relevant titles — OR-ing a broad genre like "drama" in
   // with more specific ones just returns generic popular dramas.
   genreMatchAll?: boolean;
+  // ISO 639-1 code (e.g. "en", "he") — filters to movies whose original
+  // spoken language matches, for requests like "only in English".
+  withOriginalLanguage?: string | null;
 };
 
 export async function discoverMovies(
@@ -112,6 +115,7 @@ export async function discoverMovies(
     params.certification_country = "US";
     params["certification.lte"] = opts.certificationLte;
   }
+  if (opts.withOriginalLanguage) params.with_original_language = opts.withOriginalLanguage;
 
   const data = await tmdbFetch<{ results: TmdbDiscoverMovie[] }>(
     "/discover/movie",

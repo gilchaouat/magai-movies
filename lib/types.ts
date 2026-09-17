@@ -8,6 +8,9 @@ export type Preferences = {
   highlyRated: boolean;
   tone: string | null;
   audience: string | null;
+  // ISO 639-1 code (e.g. "en", "he") if the user asked for a specific
+  // original spoken language, else null.
+  language: string | null;
   summary: string;
 };
 

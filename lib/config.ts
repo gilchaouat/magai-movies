@@ -59,6 +59,25 @@ export const RESULT_FILTERS: { label: string; genreId: number | null }[] = [
 
 export const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p";
 
+// ISO 639-1 codes -> Hebrew labels, for the languages people are likely to
+// actually ask for by name.
+export const LANGUAGE_LABELS_HE: Record<string, string> = {
+  en: "אנגלית",
+  he: "עברית",
+  es: "ספרדית",
+  fr: "צרפתית",
+  de: "גרמנית",
+  it: "איטלקית",
+  ko: "קוריאנית",
+  ja: "יפנית",
+  hi: "הינדי",
+  pt: "פורטוגזית",
+  ru: "רוסית",
+  ar: "ערבית",
+  zh: "סינית",
+  tr: "טורקית",
+};
+
 export const GENRE_LABELS_HE: Record<string, string> = {
   action: "אקשן",
   adventure: "הרפתקאות",

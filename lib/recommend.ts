@@ -1,4 +1,4 @@
-import { GENRE_IDS, GENRE_LABELS_HE } from "./config";
+import { GENRE_IDS, GENRE_LABELS_HE, LANGUAGE_LABELS_HE } from "./config";
 import { parsePromptToPreferences, selectRelevantIds, type CandidateInput } from "./ai";
 import {
   discoverMovies,
@@ -35,6 +35,10 @@ function genreLabel(key: string): string {
   return GENRE_LABELS_HE[key] ?? key;
 }
 
+function languageLabel(code: string): string {
+  return LANGUAGE_LABELS_HE[code] ?? code;
+}
+
 function yearFromDate(date: string | undefined): string | null {
   if (!date) return null;
   const y = date.slice(0, 4);
@@ -63,6 +67,7 @@ function preferencesToSummary(p: Preferences): string {
   if (p.highlyRated) parts.push("מדורג גבוה");
   if (p.audience) parts.push(`קהל יעד: ${p.audience}`);
   if (p.tone) parts.push(`טון: ${p.tone}`);
+  if (p.language) parts.push(`שפת מקור: ${languageLabel(p.language)}`);
   return parts.length ? parts.join(" | ") : p.summary;
 }
 
@@ -95,6 +100,7 @@ async function fetchCandidatePool(
     sortBy: prefs.highlyRated ? ("vote_average.desc" as const) : ("popularity.desc" as const),
     minVoteCount: prefs.highlyRated ? 300 : withGenres.includes(GENRE_IDS.documentary) ? 20 : 80,
     certificationLte,
+    withOriginalLanguage: prefs.language,
   };
 
   // Attempts run strictest-first and stop as soon as one clears MIN_RESULTS —
@@ -123,7 +129,21 @@ async function fetchCandidatePool(
       minYear: null,
       netflixOnly: true,
     });
-  attempts.push({ ...baseParams, genreMatchAll: false, certificationLte: null });
+  if (prefs.language)
+    attempts.push({
+      ...baseParams,
+      genreMatchAll: false,
+      maxRuntime: null,
+      minYear: null,
+      withOriginalLanguage: null,
+      netflixOnly: true,
+    });
+  attempts.push({
+    ...baseParams,
+    genreMatchAll: false,
+    certificationLte: null,
+    withOriginalLanguage: null,
+  });
 
   let results: TmdbDiscoverMovie[] = [];
   let usedAttemptIndex = 0;
@@ -167,6 +187,7 @@ function templateWhy(
   if (prefs.excludeGenres.length)
     bits.push(`ללא ${prefs.excludeGenres.map(genreLabel).join("/")}`);
   if (certificationForAudience(prefs.audience)) bits.push(`מתאים לקהל: ${prefs.audience}`);
+  if (prefs.language) bits.push(`בשפת המקור ${languageLabel(prefs.language)}`);
   if (!bits.length) bits.push("נבחר על סמך פופולריות ואיכות התאמה לבקשה שלך");
   return bits.join(" · ");
 }

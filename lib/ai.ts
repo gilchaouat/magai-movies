@@ -118,6 +118,10 @@ function coercePreferences(raw: unknown, fallbackSummary: string): Preferences {
     highlyRated: r.highly_rated === true,
     tone: typeof r.tone === "string" && r.tone.trim() ? r.tone.trim() : null,
     audience: typeof r.audience === "string" && r.audience.trim() ? r.audience.trim() : null,
+    language:
+      typeof r.language === "string" && /^[a-z]{2}$/.test(r.language.trim().toLowerCase())
+        ? r.language.trim().toLowerCase()
+        : null,
     summary:
       typeof r.summary === "string" && r.summary.trim()
         ? r.summary.trim()
@@ -145,6 +149,7 @@ export function mergeFollowUpPreferences(
     highlyRated: followUp.highlyRated || previous.highlyRated,
     tone: followUp.tone ?? previous.tone,
     audience: followUp.audience ?? previous.audience,
+    language: followUp.language ?? previous.language,
     summary: followUp.summary,
   };
 }
@@ -162,6 +167,9 @@ Respond with ONLY a JSON object, no prose, matching exactly this shape:
   "highly_rated": boolean,     // true if the user wants high quality / highly rated / best
   "tone": string|null,         // short descriptor, e.g. "smart", "light", "dark", "feel-good"
   "audience": string|null,     // e.g. "couple", "family", "teenagers", "solo"
+  "language": string|null,     // ISO 639-1 code of the movie's original spoken language, only if
+                                // the user asked for a specific one, e.g. "only in English" -> "en",
+                                // "סרט ישראלי"/"בעברית" -> "he", "בספרדית" -> "es". null otherwise.
   "summary": string            // one short Hebrew sentence paraphrasing the request
 }
 
@@ -192,6 +200,18 @@ const HEURISTIC_GENRE_TERMS: { key: string; terms: string[] }[] = [
   { key: "fantasy", terms: ["פנטזיה", "fantasy"] },
   { key: "war", terms: ["מלחמה", "war"] },
   { key: "music", terms: ["מוזיקלי", "מוזיקה", "musical", "music"] },
+];
+
+const HEURISTIC_LANGUAGE_TERMS: { code: string; terms: string[] }[] = [
+  { code: "en", terms: ["באנגלית", "אנגלית", "english"] },
+  { code: "he", terms: ["בעברית", "עברית", "hebrew", "ישראלי", "ישראלית"] },
+  { code: "es", terms: ["בספרדית", "ספרדית", "spanish"] },
+  { code: "fr", terms: ["בצרפתית", "צרפתית", "french"] },
+  { code: "de", terms: ["בגרמנית", "גרמנית", "german"] },
+  { code: "it", terms: ["באיטלקית", "איטלקית", "italian"] },
+  { code: "ko", terms: ["בקוריאנית", "קוריאני", "קוריאנית", "korean"] },
+  { code: "ja", terms: ["ביפנית", "יפנית", "japanese"] },
+  { code: "hi", terms: ["בהינדי", "הינדי", "hindi"] },
 ];
 
 function heuristicParse(query: string): Preferences {
@@ -232,6 +252,14 @@ function heuristicParse(query: string): Preferences {
   if (q.includes("קליל")) tone = "light";
   if (q.includes("איכותי") || q.includes("חכם") || q.includes("smart")) tone = "smart";
 
+  let language: string | null = null;
+  for (const { code, terms } of HEURISTIC_LANGUAGE_TERMS) {
+    if (terms.some((t) => q.includes(t.toLowerCase()))) {
+      language = code;
+      break;
+    }
+  }
+
   return {
     genres,
     excludeGenres,
@@ -242,6 +270,7 @@ function heuristicParse(query: string): Preferences {
     highlyRated,
     tone,
     audience,
+    language,
     summary: query,
   };
 }
