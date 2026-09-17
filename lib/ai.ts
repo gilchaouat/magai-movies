@@ -323,8 +323,9 @@ export async function writeEditorialBlurbs(
   if (!activeAiProvider() || movies.length === 0) return { blurbs: {}, error: null };
   const system = `You are an editorial movie critic writing for a premium Hebrew recommendation site called "MAGAI Movies".
 For each movie given, write:
-- "overview": a punchy 1-2 sentence Hebrew editorial description (spoiler-free).
-- "why": one short Hebrew sentence explaining specifically why this movie matches the user's request.
+- "overview": one punchy Hebrew sentence (spoiler-free).
+- "why": one short Hebrew sentence (max ~12 words) explaining specifically why this movie matches the user's request.
+Keep both fields brief — this runs for several movies at once.
 
 Respond with ONLY a JSON object shaped like:
 { "<movie id>": { "overview": "...", "why": "..." }, ... }
@@ -372,34 +373,35 @@ export type CandidateInput = {
 
 // TMDB's genre tags are too coarse to know a movie is specifically "about
 // classical composers" or any other plot-level theme — only reading the
-// actual synopsis can judge that. This takes the wider candidate pool a
-// genre/keyword search already narrowed down and has the AI both pick which
-// ones genuinely fit the request (by plot, not just shared genre) and write
-// their editorial copy, in one call.
-function selectSystemPrompt(limit: number): string {
-  return `You are a meticulous movie curator for a premium Hebrew recommendation site called "MAGAI Movies".
+// actual synopsis can judge that. This deliberately asks for IDs only (not
+// full write-ups): picking which movies to show has to finish before
+// anything can render, so it needs to be the fast call. The slower work of
+// writing real editorial copy for the final picks happens afterward, once
+// posters are already on screen (see writeEditorialBlurbs, called from a
+// separate request) — that's what keeps a search feeling quick instead of
+// blocking the first paint on a long piece of generated text.
+function selectIdsSystemPrompt(limit: number): string {
+  return `You are curating search results for a premium Hebrew movie recommendation site called "MAGAI Movies".
 You are given a user's free-text movie request and a pool of candidate movies (title, plot summary, genres, year, rating) that a genre/keyword search already narrowed down from a streaming catalog.
-Your job: from this pool ONLY, pick the movies whose actual PLOT genuinely matches what the user asked for, ordered best-match first, and write editorial copy for each.
+Your job: from this pool ONLY, pick the ids of the movies whose actual PLOT genuinely matches what the user asked for, ordered best-match first.
 
 Respond with ONLY a JSON object shaped like:
-{ "selected": [ { "id": number, "overview": "1-2 sentence spoiler-free Hebrew editorial description", "why": "one short Hebrew sentence on why THIS movie specifically fits the request" }, ... ] }
+{ "selected_ids": [number, number, ...] }
 
 Rules:
 - Only include a movie if its plot genuinely relates to the request — sharing a broad genre (e.g. both happen to be "drama") is not enough on its own.
 - Order the array from best match to weakest.
-- Include at most ${limit} movies.
-- If few or none of the candidates truly fit, return fewer entries — even an empty array — rather than padding with weak matches.
-- Use natural, elegant Hebrew. Do not invent plot details not implied by the given summary.`;
+- Include at most ${limit} ids.
+- If few or none of the candidates truly fit, return fewer ids — even an empty array — rather than padding with weak matches.`;
 }
 
-export async function selectRelevantAndWriteBlurbs(
+export async function selectRelevantIds(
   query: string,
   preferencesSummary: string,
   candidates: CandidateInput[],
   limit: number
-): Promise<{ selectedIds: number[]; blurbs: BlurbOutput; error: string | null }> {
-  if (!activeAiProvider() || candidates.length === 0)
-    return { selectedIds: [], blurbs: {}, error: null };
+): Promise<{ selectedIds: number[]; error: string | null }> {
+  if (!activeAiProvider() || candidates.length === 0) return { selectedIds: [], error: null };
   const user = JSON.stringify({
     user_request: query,
     interpreted_preferences: preferencesSummary,
@@ -413,27 +415,20 @@ export async function selectRelevantAndWriteBlurbs(
     })),
   });
   try {
-    // Same reasoning as writeEditorialBlurbs — selecting from a wide pool
-    // and writing full copy for up to 8 picks needs real room, not the
-    // default budget sized for a short structured answer.
-    const raw = await callLLM(selectSystemPrompt(limit), user, 4096);
-    const json = extractJson(raw) as {
-      selected?: { id: number; overview?: string; why?: string }[];
-    };
-    const items = Array.isArray(json.selected) ? json.selected : [];
+    // A bare array of ids is short — the default budget is plenty.
+    const raw = await callLLM(selectIdsSystemPrompt(limit), user);
+    const json = extractJson(raw) as { selected_ids?: unknown };
+    const rawIds = Array.isArray(json.selected_ids) ? json.selected_ids : [];
     const validIds = new Set(candidates.map((c) => c.id));
     const selectedIds: number[] = [];
-    const blurbs: BlurbOutput = {};
-    for (const item of items) {
+    for (const id of rawIds) {
       if (selectedIds.length >= limit) break;
-      if (typeof item.id !== "number" || !validIds.has(item.id)) continue;
-      if (!item.overview || !item.why) continue;
-      if (selectedIds.includes(item.id)) continue;
-      selectedIds.push(item.id);
-      blurbs[item.id] = { overview: item.overview, why: item.why };
+      if (typeof id === "number" && validIds.has(id) && !selectedIds.includes(id)) {
+        selectedIds.push(id);
+      }
     }
-    return { selectedIds, blurbs, error: null };
+    return { selectedIds, error: null };
   } catch (err) {
-    return { selectedIds: [], blurbs: {}, error: err instanceof Error ? err.message : String(err) };
+    return { selectedIds: [], error: err instanceof Error ? err.message : String(err) };
   }
 }

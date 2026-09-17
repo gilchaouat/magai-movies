@@ -1,11 +1,5 @@
 import { GENRE_IDS, GENRE_LABELS_HE } from "./config";
-import {
-  parsePromptToPreferences,
-  selectRelevantAndWriteBlurbs,
-  writeEditorialBlurbs,
-  type BlurbOutput,
-  type CandidateInput,
-} from "./ai";
+import { parsePromptToPreferences, selectRelevantIds, type CandidateInput } from "./ai";
 import {
   discoverMovies,
   genreNamesFromIds,
@@ -210,15 +204,14 @@ export async function getRecommendations(
 
   // When AI is available, let it read each candidate's actual plot and pick
   // which ones genuinely fit the request — TMDB's genre tags alone can't
-  // tell "about classical composers" from any other drama. Falls back to
-  // plain popularity order if the call fails or the AI finds nothing it's
+  // tell "about classical composers" from any other drama. This only asks
+  // for ids (not full write-ups), which is what keeps it fast enough to sit
+  // on the critical path before anything renders; the slower work of
+  // writing the actual editorial copy happens afterward, once these movies
+  // are already on screen (see blurbsPending below). Falls back to plain
+  // popularity order if the call fails or the AI finds nothing it's
   // confident about, so a thin/no-op result never means a blank page.
   let top = candidates.slice(0, RESULT_COUNT);
-  let preselectedBlurbs: BlurbOutput = {};
-  // TEMPORARY DEBUG — remove once the blurb/selection failures are diagnosed
-  let selectionDebugError: string | null = null;
-  let blurbDebugError: string | null = null;
-  let selectedCountDebug: number | null = null;
   if (usedAI) {
     const candidateInputs: CandidateInput[] = candidates.map((c) => ({
       id: c.id,
@@ -228,20 +221,12 @@ export async function getRecommendations(
       rating: typeof c.vote_average === "number" ? c.vote_average : null,
       genres: genreNamesFromIds(c.genre_ids).map(genreLabel),
     }));
-    const selection = await selectRelevantAndWriteBlurbs(
-      query,
-      prefsSummary,
-      candidateInputs,
-      RESULT_COUNT
-    );
-    selectionDebugError = selection.error;
-    selectedCountDebug = selection.selectedIds.length;
+    const selection = await selectRelevantIds(query, prefsSummary, candidateInputs, RESULT_COUNT);
     if (selection.selectedIds.length > 0) {
       const byId = new Map(candidates.map((c) => [c.id, c]));
       top = selection.selectedIds
         .map((id) => byId.get(id))
         .filter((c): c is TmdbDiscoverMovie => !!c);
-      preselectedBlurbs = selection.blurbs;
     }
   }
 
@@ -283,45 +268,26 @@ export async function getRecommendations(
       };
     });
 
-  let blurbs: BlurbOutput = preselectedBlurbs;
-  if (usedAI && Object.keys(preselectedBlurbs).length === 0) {
-    const blurbResult = await writeEditorialBlurbs(
-      query,
-      prefsSummary,
-      enriched.map((m) => ({
-        id: m.id,
-        title: m.title,
-        overview: m.overview,
-        year: m.year,
-        runtime: m.runtime,
-        rating: m.rating,
-        genres: m.genres,
-      }))
-    );
-    blurbs = blurbResult.blurbs;
-    blurbDebugError = blurbResult.error;
-  }
-
-  const recommendations: Recommendation[] = enriched.map((m, i) => {
-    const blurb = blurbs[m.id];
-    return {
-      id: m.id,
-      rank: i + 1,
-      title: m.title,
-      year: m.year,
-      runtime: m.runtime,
-      genres: m.genres,
-      genreIds: m.genreIds,
-      rating: m.rating,
-      overview: blurb?.overview || m.overview || "אין תקציר זמין לסרט זה.",
-      whyItMatches: blurb?.why || templateWhy(preferences, m, tasteLabels),
-      posterUrl: m.posterUrl,
-      backdropUrl: m.backdropUrl,
-      trailerUrl: m.trailerUrl,
-      netflixUrl: m.netflixUrl,
-      netflixVerified: m.netflixVerified,
-    };
-  });
+  // The real editorial copy isn't written here — it's written by a separate,
+  // slower call the client makes after these movies (with plain template
+  // text) are already rendered. See app/api/recommend/blurbs/route.ts.
+  const recommendations: Recommendation[] = enriched.map((m, i) => ({
+    id: m.id,
+    rank: i + 1,
+    title: m.title,
+    year: m.year,
+    runtime: m.runtime,
+    genres: m.genres,
+    genreIds: m.genreIds,
+    rating: m.rating,
+    overview: m.overview || "אין תקציר זמין לסרט זה.",
+    whyItMatches: templateWhy(preferences, m, tasteLabels),
+    posterUrl: m.posterUrl,
+    backdropUrl: m.backdropUrl,
+    trailerUrl: m.trailerUrl,
+    netflixUrl: m.netflixUrl,
+    netflixVerified: m.netflixVerified,
+  }));
 
   return {
     query,
@@ -331,7 +297,7 @@ export async function getRecommendations(
     aiError,
     usedTasteDefault,
     relaxedSearch,
-    // TEMPORARY DEBUG — remove once the blurb/selection failures are diagnosed
-    debugAi: { selectionDebugError, blurbDebugError, selectedCountDebug },
+    prefsSummary,
+    blurbsPending: usedAI && recommendations.length > 0,
   };
 }

@@ -43,10 +43,13 @@ export type RecommendResult = {
   // came up too thin and had to loosen constraints to find enough movies —
   // lets the UI admit the results are a broader match, not a perfect one.
   relaxedSearch: boolean;
-  // TEMPORARY DEBUG — remove once the blurb/selection failures are diagnosed
-  debugAi: {
-    selectionDebugError: string | null;
-    blurbDebugError: string | null;
-    selectedCountDebug: number | null;
-  };
+  // A short summary of the interpreted request, forwarded back to the
+  // client so it can pass it along when it separately requests the
+  // real editorial copy (see blurbsPending).
+  prefsSummary: string;
+  // True when AI is available and there are movies to write about —
+  // signals the client to fetch richer editorial copy for these
+  // recommendations from a separate, slower request, instead of blocking
+  // the initial render on it.
+  blurbsPending: boolean;
 };

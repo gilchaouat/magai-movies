@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import type { Preferences, RecommendResult } from "@/lib/types";
+import { useEffect, useState } from "react";
+import type { Preferences, Recommendation, RecommendResult } from "@/lib/types";
 import { readTasteProfile } from "@/lib/tasteClient";
 import { RESULT_FILTERS } from "@/lib/config";
 import ResultsClient from "./ResultsClient";
@@ -12,6 +12,44 @@ type Turn = {
   initialLikedIds: number[];
   initialDislikedIds: number[];
 };
+
+type BlurbMap = Record<number, { overview: string; why: string }>;
+
+// Writing real editorial copy for several movies is the slowest step in a
+// search — this is called after the movies (with plain template text) are
+// already rendered, so it can take its time without blocking the first
+// paint. Fails silently: the template text it's replacing is a perfectly
+// fine permanent fallback, not a loading placeholder.
+async function fetchBlurbs(
+  query: string,
+  prefsSummary: string,
+  recommendations: Recommendation[]
+): Promise<BlurbMap | null> {
+  try {
+    const res = await fetch("/api/recommend/blurbs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query,
+        prefsSummary,
+        movies: recommendations.map((m) => ({
+          id: m.id,
+          title: m.title,
+          overview: m.overview,
+          year: m.year,
+          runtime: m.runtime,
+          rating: m.rating,
+          genres: m.genres,
+        })),
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return (data?.blurbs as BlurbMap) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export default function Conversation({
   initialQuery,
@@ -36,6 +74,37 @@ export default function Conversation({
   // follow-up message so "דרמה" + "רק 2024-2026" combines without retyping
   // the genre, while the filter itself stays an instant, free, local filter.
   const [activeFilterGenreId, setActiveFilterGenreId] = useState<number | null>(null);
+
+  function applyBlurbs(turnQuery: string, blurbs: BlurbMap) {
+    setTurns((current) =>
+      current.map((turn) => {
+        if (turn.query !== turnQuery) return turn;
+        return {
+          ...turn,
+          result: {
+            ...turn.result,
+            recommendations: turn.result.recommendations.map((m) => {
+              const blurb = blurbs[m.id];
+              return blurb ? { ...m, overview: blurb.overview, whyItMatches: blurb.why } : m;
+            }),
+          },
+        };
+      })
+    );
+  }
+
+  // The server-rendered first turn's posters/details are already on screen —
+  // fetch its richer AI descriptions now instead of having made the whole
+  // page wait on them.
+  useEffect(() => {
+    if (!initialResult.blurbsPending) return;
+    fetchBlurbs(initialQuery, initialResult.prefsSummary, initialResult.recommendations).then(
+      (blurbs) => {
+        if (blurbs && Object.keys(blurbs).length) applyBlurbs(initialQuery, blurbs);
+      }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function runQuery(
     text: string,
@@ -65,6 +134,11 @@ export default function Conversation({
       setTurns((t) => [...t.filter((turn) => turn.query !== text), newTurn]);
       // The new grid starts unfiltered ("הכול"), so forget the old selection.
       setActiveFilterGenreId(null);
+      if (result.blurbsPending) {
+        fetchBlurbs(text, result.prefsSummary, result.recommendations).then((blurbs) => {
+          if (blurbs && Object.keys(blurbs).length) applyBlurbs(text, blurbs);
+        });
+      }
       return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה בלתי צפויה. נסו שוב.");
@@ -156,16 +230,6 @@ export default function Conversation({
           לא נמצאו הרבה סרטים שמתאימים בול לבקשה, אז הרחבנו קצת את החיפוש.
         </p>
       )}
-      {/* TEMPORARY DEBUG — remove once the blurb/selection failures are diagnosed */}
-      <p
-        dir="ltr"
-        className="mx-auto max-w-2xl break-words rounded-lg bg-amber-50 p-3 text-center text-xs text-amber-800"
-      >
-        DEBUG selectedCount={String(latestTurn.result.debugAi.selectedCountDebug)}{" "}
-        selectionError={latestTurn.result.debugAi.selectionDebugError ?? "null"} blurbError=
-        {latestTurn.result.debugAi.blurbDebugError ?? "null"}
-      </p>
-
       {latestTurn.result.recommendations.length === 0 ? (
         <p className="text-center text-ink/50">לא מצאתי סרטים מתאימים לבקשה הזו.</p>
       ) : (
