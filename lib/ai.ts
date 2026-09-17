@@ -327,6 +327,12 @@ For each movie given, write:
 - "why": one short Hebrew sentence (max ~12 words) explaining specifically why this movie matches the user's request.
 Keep both fields brief — this runs for several movies at once.
 
+These movies were already picked as fitting the request by an earlier
+step — describe the genuine connection, but never invent or stretch a
+comparison (e.g. don't claim a movie resembles a specific film the user
+mentioned unless it truly does). If a movie's actual link to the request is
+weak, describe it honestly and simply rather than overstating the fit.
+
 Respond with ONLY a JSON object shaped like:
 { "<movie id>": { "overview": "...", "why": "..." }, ... }
 Use natural, elegant Hebrew. Do not invent plot details not implied by the provided overview.`;
@@ -415,8 +421,10 @@ export async function selectRelevantIds(
     })),
   });
   try {
-    // A bare array of ids is short — the default budget is plenty.
-    const raw = await callLLM(selectIdsSystemPrompt(limit), user);
+    // The final answer is just a short array of ids, but judging relevance
+    // across a wider pool can still involve real deliberation — give it
+    // enough room that reasoning before the answer doesn't crowd it out.
+    const raw = await callLLM(selectIdsSystemPrompt(limit), user, 1500);
     const json = extractJson(raw) as { selected_ids?: unknown };
     const rawIds = Array.isArray(json.selected_ids) ? json.selected_ids : [];
     const validIds = new Set(candidates.map((c) => c.id));
