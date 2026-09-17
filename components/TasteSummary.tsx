@@ -72,6 +72,22 @@ export default function TasteSummary() {
 
       {open && profile && (
         <div className="mt-3 space-y-4 rounded-xl bg-white p-4 text-right text-sm shadow-sm ring-1 ring-black/5">
+          <div>
+            <label className="mb-2 block text-xs font-bold text-ink/50">
+              תארו את הטעם שלכם במילים שלכם
+            </label>
+            <textarea
+              value={customTasteInput}
+              onChange={(e) => setCustomTasteInput(e.target.value)}
+              onBlur={handleCustomTasteBlur}
+              placeholder="למשל: אני אוהב/ת דרמות איטיות, לא אוהב/ת אקשן, מעדיף/ה סרטים קצרים"
+              rows={2}
+              maxLength={300}
+              dir="rtl"
+              className="w-full resize-none rounded-lg border border-ink/15 p-2.5 text-sm text-ink outline-none focus:border-accent"
+            />
+          </div>
+
           {hasAnyTaste && (
             <a
               href={`/?q=${encodeURIComponent(TASTE_SEARCH_QUERY)}`}
@@ -82,7 +98,7 @@ export default function TasteSummary() {
             </a>
           )}
 
-          <div>
+          <div className="border-t border-ink/10 pt-4">
             <p className="mb-2 text-xs font-bold text-ink/50">
               נלמד אוטומטית מהסרטים שצפיתם בהם או שהצגתם עניין (טריילר / נטפליקס)
             </p>
@@ -106,22 +122,6 @@ export default function TasteSummary() {
                 עוד לא צפיתם בטריילר או לחצתם על נטפליקס לאף סרט — ברגע שתעשו זאת, זה יופיע כאן.
               </p>
             )}
-          </div>
-
-          <div>
-            <label className="mb-2 block text-xs font-bold text-ink/50">
-              תארו את הטעם שלכם במילים שלכם (אופציונלי)
-            </label>
-            <textarea
-              value={customTasteInput}
-              onChange={(e) => setCustomTasteInput(e.target.value)}
-              onBlur={handleCustomTasteBlur}
-              placeholder="למשל: אני אוהב/ת דרמות איטיות, לא אוהב/ת אקשן, מעדיף/ה סרטים קצרים"
-              rows={2}
-              maxLength={300}
-              dir="rtl"
-              className="w-full resize-none rounded-lg border border-ink/15 p-2.5 text-sm text-ink outline-none focus:border-accent"
-            />
           </div>
 
           <button
