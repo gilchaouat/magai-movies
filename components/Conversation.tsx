@@ -137,9 +137,12 @@ export default function Conversation({
     e.preventDefault();
     const text = followUp.trim();
     if (!text) return;
-    const activeFilterLabel = RESULT_FILTERS.find(
-      (f) => f.genreId === activeFilterGenreId
-    )?.label;
+    // Only fold in a label when a specific filter is active — "הכול" itself
+    // (genreId: null, the default) isn't a real qualifier worth prepending.
+    const activeFilterLabel =
+      activeFilterGenreId !== null
+        ? RESULT_FILTERS.find((f) => f.genreId === activeFilterGenreId)?.label
+        : null;
     const effectiveText = activeFilterLabel ? `${activeFilterLabel}, ${text}` : text;
     const ok = await runQuery(effectiveText, turns[turns.length - 1].result.preferences);
     if (ok) setFollowUp("");
