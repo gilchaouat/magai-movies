@@ -15,7 +15,7 @@ export function activeAiProvider(): AiProvider {
 
 class AiCallError extends Error {}
 
-async function callAnthropic(system: string, user: string): Promise<string> {
+async function callAnthropic(system: string, user: string, maxTokens: number): Promise<string> {
   const key = process.env.ANTHROPIC_API_KEY;
   const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
   const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -27,7 +27,7 @@ async function callAnthropic(system: string, user: string): Promise<string> {
     },
     body: JSON.stringify({
       model,
-      max_tokens: 900,
+      max_tokens: maxTokens,
       system,
       messages: [{ role: "user", content: user }],
     }),
@@ -42,7 +42,7 @@ async function callAnthropic(system: string, user: string): Promise<string> {
   return text as string;
 }
 
-async function callOpenAI(system: string, user: string): Promise<string> {
+async function callOpenAI(system: string, user: string, maxTokens: number): Promise<string> {
   const key = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -54,6 +54,7 @@ async function callOpenAI(system: string, user: string): Promise<string> {
     body: JSON.stringify({
       model,
       temperature: 0.3,
+      max_tokens: maxTokens,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
@@ -71,10 +72,10 @@ async function callOpenAI(system: string, user: string): Promise<string> {
   return text as string;
 }
 
-async function callLLM(system: string, user: string): Promise<string> {
+async function callLLM(system: string, user: string, maxTokens = 900): Promise<string> {
   const provider = activeAiProvider();
-  if (provider === "anthropic") return callAnthropic(system, user);
-  if (provider === "openai") return callOpenAI(system, user);
+  if (provider === "anthropic") return callAnthropic(system, user, maxTokens);
+  if (provider === "openai") return callOpenAI(system, user, maxTokens);
   throw new AiCallError("No AI provider configured");
 }
 
@@ -342,7 +343,10 @@ Use natural, elegant Hebrew. Do not invent plot details not implied by the provi
     })),
   });
   try {
-    const raw = await callLLM(system, user);
+    // Writing overview+why for up to 8 movies in Hebrew comfortably exceeds
+    // the default budget and was getting cut off mid-JSON — this is real
+    // generated content, not a short structured answer, so it needs room.
+    const raw = await callLLM(system, user, 4096);
     const json = extractJson(raw) as Record<string, { overview?: string; why?: string }>;
     const out: BlurbOutput = {};
     for (const m of movies) {
@@ -409,7 +413,10 @@ export async function selectRelevantAndWriteBlurbs(
     })),
   });
   try {
-    const raw = await callLLM(selectSystemPrompt(limit), user);
+    // Same reasoning as writeEditorialBlurbs — selecting from a wide pool
+    // and writing full copy for up to 8 picks needs real room, not the
+    // default budget sized for a short structured answer.
+    const raw = await callLLM(selectSystemPrompt(limit), user, 4096);
     const json = extractJson(raw) as {
       selected?: { id: number; overview?: string; why?: string }[];
     };
