@@ -1,5 +1,11 @@
 import { GENRE_IDS, GENRE_LABELS_HE } from "./config";
-import { parsePromptToPreferences, writeEditorialBlurbs } from "./ai";
+import {
+  parsePromptToPreferences,
+  selectRelevantAndWriteBlurbs,
+  writeEditorialBlurbs,
+  type BlurbOutput,
+  type CandidateInput,
+} from "./ai";
 import {
   discoverMovies,
   genreNamesFromIds,
@@ -197,7 +203,41 @@ export async function getRecommendations(
     );
   }
 
-  const top = candidates.slice(0, RESULT_COUNT);
+  const tasteLabels = usedTasteDefault ? topLikedGenreLabels(profile) : [];
+  const prefsSummary =
+    preferencesToSummary(preferences) +
+    (tasteLabels.length ? ` | הותאם לפי טעם קודם: ${tasteLabels.join(", ")}` : "");
+
+  // When AI is available, let it read each candidate's actual plot and pick
+  // which ones genuinely fit the request — TMDB's genre tags alone can't
+  // tell "about classical composers" from any other drama. Falls back to
+  // plain popularity order if the call fails or the AI finds nothing it's
+  // confident about, so a thin/no-op result never means a blank page.
+  let top = candidates.slice(0, RESULT_COUNT);
+  let preselectedBlurbs: BlurbOutput = {};
+  if (usedAI) {
+    const candidateInputs: CandidateInput[] = candidates.map((c) => ({
+      id: c.id,
+      title: c.title,
+      overview: c.overview,
+      year: yearFromDate(c.release_date),
+      rating: typeof c.vote_average === "number" ? c.vote_average : null,
+      genres: genreNamesFromIds(c.genre_ids).map(genreLabel),
+    }));
+    const selection = await selectRelevantAndWriteBlurbs(
+      query,
+      prefsSummary,
+      candidateInputs,
+      RESULT_COUNT
+    );
+    if (selection && selection.selectedIds.length > 0) {
+      const byId = new Map(candidates.map((c) => [c.id, c]));
+      top = selection.selectedIds
+        .map((id) => byId.get(id))
+        .filter((c): c is TmdbDiscoverMovie => !!c);
+      preselectedBlurbs = selection.blurbs;
+    }
+  }
 
   const details = await Promise.all(
     top.map(async (c) => {
@@ -237,13 +277,8 @@ export async function getRecommendations(
       };
     });
 
-  const tasteLabels = usedTasteDefault ? topLikedGenreLabels(profile) : [];
-  const prefsSummary =
-    preferencesToSummary(preferences) +
-    (tasteLabels.length ? ` | הותאם לפי טעם קודם: ${tasteLabels.join(", ")}` : "");
-
-  let blurbs: Awaited<ReturnType<typeof writeEditorialBlurbs>> = {};
-  if (usedAI) {
+  let blurbs: BlurbOutput = preselectedBlurbs;
+  if (usedAI && Object.keys(preselectedBlurbs).length === 0) {
     blurbs = await writeEditorialBlurbs(
       query,
       prefsSummary,

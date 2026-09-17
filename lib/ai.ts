@@ -356,3 +356,76 @@ Use natural, elegant Hebrew. Do not invent plot details not implied by the provi
     return {};
   }
 }
+
+export type CandidateInput = {
+  id: number;
+  title: string;
+  overview: string;
+  year: string | null;
+  rating: number | null;
+  genres: string[];
+};
+
+// TMDB's genre tags are too coarse to know a movie is specifically "about
+// classical composers" or any other plot-level theme — only reading the
+// actual synopsis can judge that. This takes the wider candidate pool a
+// genre/keyword search already narrowed down and has the AI both pick which
+// ones genuinely fit the request (by plot, not just shared genre) and write
+// their editorial copy, in one call.
+function selectSystemPrompt(limit: number): string {
+  return `You are a meticulous movie curator for a premium Hebrew recommendation site called "MAGAI Movies".
+You are given a user's free-text movie request and a pool of candidate movies (title, plot summary, genres, year, rating) that a genre/keyword search already narrowed down from a streaming catalog.
+Your job: from this pool ONLY, pick the movies whose actual PLOT genuinely matches what the user asked for, ordered best-match first, and write editorial copy for each.
+
+Respond with ONLY a JSON object shaped like:
+{ "selected": [ { "id": number, "overview": "1-2 sentence spoiler-free Hebrew editorial description", "why": "one short Hebrew sentence on why THIS movie specifically fits the request" }, ... ] }
+
+Rules:
+- Only include a movie if its plot genuinely relates to the request — sharing a broad genre (e.g. both happen to be "drama") is not enough on its own.
+- Order the array from best match to weakest.
+- Include at most ${limit} movies.
+- If few or none of the candidates truly fit, return fewer entries — even an empty array — rather than padding with weak matches.
+- Use natural, elegant Hebrew. Do not invent plot details not implied by the given summary.`;
+}
+
+export async function selectRelevantAndWriteBlurbs(
+  query: string,
+  preferencesSummary: string,
+  candidates: CandidateInput[],
+  limit: number
+): Promise<{ selectedIds: number[]; blurbs: BlurbOutput } | null> {
+  if (!activeAiProvider() || candidates.length === 0) return null;
+  const user = JSON.stringify({
+    user_request: query,
+    interpreted_preferences: preferencesSummary,
+    candidates: candidates.map((c) => ({
+      id: c.id,
+      title: c.title,
+      overview: c.overview,
+      year: c.year,
+      rating: c.rating,
+      genres: c.genres,
+    })),
+  });
+  try {
+    const raw = await callLLM(selectSystemPrompt(limit), user);
+    const json = extractJson(raw) as {
+      selected?: { id: number; overview?: string; why?: string }[];
+    };
+    const items = Array.isArray(json.selected) ? json.selected : [];
+    const validIds = new Set(candidates.map((c) => c.id));
+    const selectedIds: number[] = [];
+    const blurbs: BlurbOutput = {};
+    for (const item of items) {
+      if (selectedIds.length >= limit) break;
+      if (typeof item.id !== "number" || !validIds.has(item.id)) continue;
+      if (!item.overview || !item.why) continue;
+      if (selectedIds.includes(item.id)) continue;
+      selectedIds.push(item.id);
+      blurbs[item.id] = { overview: item.overview, why: item.why };
+    }
+    return { selectedIds, blurbs };
+  } catch {
+    return null;
+  }
+}
