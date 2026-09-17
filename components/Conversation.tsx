@@ -2,15 +2,12 @@
 
 import { useEffect, useState } from "react";
 import type { Preferences, Recommendation, RecommendResult } from "@/lib/types";
-import { readTasteProfile } from "@/lib/tasteClient";
 import { RESULT_FILTERS } from "@/lib/config";
 import ResultsClient from "./ResultsClient";
 
 type Turn = {
   query: string;
   result: RecommendResult;
-  initialLikedIds: number[];
-  initialDislikedIds: number[];
 };
 
 type BlurbMap = Record<number, { overview: string; why: string }>;
@@ -54,19 +51,13 @@ async function fetchBlurbs(
 export default function Conversation({
   initialQuery,
   initialResult,
-  initialLikedIds,
-  initialDislikedIds,
   aiConfigured,
 }: {
   initialQuery: string;
   initialResult: RecommendResult;
-  initialLikedIds: number[];
-  initialDislikedIds: number[];
   aiConfigured: boolean;
 }) {
-  const [turns, setTurns] = useState<Turn[]>([
-    { query: initialQuery, result: initialResult, initialLikedIds, initialDislikedIds },
-  ]);
+  const [turns, setTurns] = useState<Turn[]>([{ query: initialQuery, result: initialResult }]);
   const [followUp, setFollowUp] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,13 +113,7 @@ export default function Conversation({
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || "שגיאה בלתי צפויה");
       const result = data as RecommendResult;
-      const profile = readTasteProfile();
-      const newTurn: Turn = {
-        query: text,
-        result,
-        initialLikedIds: profile.liked.map((e) => e.id),
-        initialDislikedIds: profile.disliked.map((e) => e.id),
-      };
+      const newTurn: Turn = { query: text, result };
       // Re-running an earlier query moves it to the end instead of appearing
       // twice in the history log.
       setTurns((t) => [...t.filter((turn) => turn.query !== text), newTurn]);
@@ -236,8 +221,6 @@ export default function Conversation({
         <ResultsClient
           key={turns.length}
           recommendations={latestTurn.result.recommendations}
-          initialLikedIds={latestTurn.initialLikedIds}
-          initialDislikedIds={latestTurn.initialDislikedIds}
           onFilterChange={setActiveFilterGenreId}
         />
       )}

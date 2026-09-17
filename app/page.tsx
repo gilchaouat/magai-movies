@@ -121,8 +121,6 @@ async function Results({ query }: { query: string }) {
     <Conversation
       initialQuery={query}
       initialResult={result}
-      initialLikedIds={profile.liked.map((e) => e.id)}
-      initialDislikedIds={profile.disliked.map((e) => e.id)}
       aiConfigured={!!activeAiProvider()}
     />
   );

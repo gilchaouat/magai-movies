@@ -3,19 +3,21 @@
 import { useMemo, useState } from "react";
 import { RESULT_FILTERS } from "@/lib/config";
 import type { Recommendation } from "@/lib/types";
-import { applyFeedback, clearFeedback } from "@/lib/taste";
+import { recordInterest } from "@/lib/taste";
 import { readTasteProfile, writeTasteProfile } from "@/lib/tasteClient";
 import MovieCard from "./MovieCard";
 
+// Weights for implicit taste learning — a Netflix click is a real intent
+// signal and counts for more than a trailer click, which just shows
+// curiosity.
+const WATCH_WEIGHT = 2;
+const TRAILER_WEIGHT = 1;
+
 export default function ResultsClient({
   recommendations,
-  initialLikedIds,
-  initialDislikedIds,
   onFilterChange,
 }: {
   recommendations: Recommendation[];
-  initialLikedIds: number[];
-  initialDislikedIds: number[];
   // Notifies the parent which genre filter is active, purely so a follow-up
   // message can fold it in — the filtering itself stays instant/local here.
   onFilterChange?: (genreId: number | null) => void;
@@ -25,31 +27,22 @@ export default function ResultsClient({
     setActiveFilterState(genreId);
     onFilterChange?.(genreId);
   }
-  const [likedIds, setLikedIds] = useState(() => new Set(initialLikedIds));
-  const [dislikedIds, setDislikedIds] = useState(() => new Set(initialDislikedIds));
 
   const filtered = useMemo(() => {
     if (activeFilter === null) return recommendations;
     return recommendations.filter((m) => m.genreIds.includes(activeFilter));
   }, [recommendations, activeFilter]);
 
-  function handleFeedback(movie: Recommendation, liked: boolean) {
-    // Read fresh from the cookie (not just this render's state) so feedback
-    // given on a previous search isn't clobbered by a stale in-memory copy.
+  function recordClick(movie: Recommendation, weight: number) {
+    // Read fresh from the cookie (not just this render's state) so a click
+    // on a previous search's results isn't clobbered by a stale copy.
     const current = readTasteProfile();
-    const alreadyThisWay = liked
-      ? current.liked.some((e) => e.id === movie.id)
-      : current.disliked.some((e) => e.id === movie.id);
-    const next = alreadyThisWay
-      ? clearFeedback(current, { id: movie.id, genreIds: movie.genreIds })
-      : applyFeedback(
-          current,
-          { id: movie.id, title: movie.title, genreIds: movie.genreIds },
-          liked
-        );
+    const next = recordInterest(
+      current,
+      { id: movie.id, title: movie.title, genreIds: movie.genreIds },
+      weight
+    );
     writeTasteProfile(next);
-    setLikedIds(new Set(next.liked.map((e) => e.id)));
-    setDislikedIds(new Set(next.disliked.map((e) => e.id)));
   }
 
   return (
@@ -83,10 +76,8 @@ export default function ResultsClient({
             <MovieCard
               key={movie.id}
               movie={movie}
-              isLiked={likedIds.has(movie.id)}
-              isDisliked={dislikedIds.has(movie.id)}
-              onLike={() => handleFeedback(movie, true)}
-              onDislike={() => handleFeedback(movie, false)}
+              onWatchClick={() => recordClick(movie, WATCH_WEIGHT)}
+              onTrailerClick={() => recordClick(movie, TRAILER_WEIGHT)}
             />
           ))}
         </div>

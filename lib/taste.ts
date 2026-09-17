@@ -3,17 +3,31 @@ import { GENRE_ID_TO_KEY, GENRE_LABELS_HE } from "./config";
 export const TASTE_COOKIE = "magai_taste";
 const MAX_ENTRIES = 25;
 
+const MAX_CUSTOM_TASTE_LENGTH = 300;
+
 export type LikedEntry = { id: number; title: string };
 
 export type TasteProfile = {
   likedGenres: Record<string, number>;
+  // Kept only so an old cookie written before thumbs were removed still
+  // decodes cleanly — nothing writes to this anymore.
   dislikedGenres: Record<string, number>;
   liked: LikedEntry[];
   disliked: LikedEntry[];
+  // Free text the user can write/edit directly, describing their own taste
+  // in their own words — carried to the AI alongside the auto-learned
+  // genres, and the one thing here that isn't inferred.
+  customTaste: string;
 };
 
 export function emptyProfile(): TasteProfile {
-  return { likedGenres: {}, dislikedGenres: {}, liked: [], disliked: [] };
+  return {
+    likedGenres: {},
+    dislikedGenres: {},
+    liked: [],
+    disliked: [],
+    customTaste: "",
+  };
 }
 
 function sanitizeEntries(raw: unknown): LikedEntry[] {
@@ -39,6 +53,10 @@ export function decodeProfile(raw: string | undefined | null): TasteProfile {
           : {},
       liked: sanitizeEntries(parsed.liked),
       disliked: sanitizeEntries(parsed.disliked),
+      customTaste:
+        typeof parsed.customTaste === "string"
+          ? parsed.customTaste.slice(0, MAX_CUSTOM_TASTE_LENGTH)
+          : "",
     };
   } catch {
     return emptyProfile();
@@ -49,68 +67,38 @@ export function encodeProfile(profile: TasteProfile): string {
   return encodeURIComponent(JSON.stringify(profile));
 }
 
-export function applyFeedback(
+// Learns from what someone actually does, not a separate rating step: a
+// click on "watch on Netflix" is a real signal of intent (weighted higher),
+// a trailer click a softer one — both nudge the liked-genre counts used to
+// personalize future default searches. There's no negative counterpart: an
+// unclicked recommendation is too noisy a signal to safely read as dislike.
+export function recordInterest(
   profile: TasteProfile,
   movie: { id: number; title: string; genreIds: number[] },
-  liked: boolean
+  weight: number
 ): TasteProfile {
   const next: TasteProfile = {
+    ...profile,
     likedGenres: { ...profile.likedGenres },
-    dislikedGenres: { ...profile.dislikedGenres },
     liked: [...profile.liked],
-    disliked: [...profile.disliked],
   };
 
-  const genreBucket = liked ? next.likedGenres : next.dislikedGenres;
   for (const gid of movie.genreIds) {
-    genreBucket[gid] = (genreBucket[gid] ?? 0) + 1;
+    next.likedGenres[gid] = (next.likedGenres[gid] ?? 0) + weight;
   }
 
-  const entry: LikedEntry = { id: movie.id, title: movie.title };
-  const bucket = liked ? next.liked : next.disliked;
-  const oppositeBucket = liked ? next.disliked : next.liked;
-  const oppIdx = oppositeBucket.findIndex((e) => e.id === movie.id);
-  if (oppIdx !== -1) oppositeBucket.splice(oppIdx, 1);
-  if (!bucket.some((e) => e.id === movie.id)) bucket.push(entry);
-  if (bucket.length > MAX_ENTRIES) bucket.splice(0, bucket.length - MAX_ENTRIES);
+  if (!next.liked.some((e) => e.id === movie.id)) {
+    next.liked = [...next.liked, { id: movie.id, title: movie.title }];
+    if (next.liked.length > MAX_ENTRIES) {
+      next.liked = next.liked.slice(next.liked.length - MAX_ENTRIES);
+    }
+  }
 
   return next;
 }
 
-// Reverses applyFeedback for one movie — used when clicking an already-active
-// 👍/👎 to cancel it, so canceling doesn't leave a phantom genre signal behind.
-export function clearFeedback(
-  profile: TasteProfile,
-  movie: { id: number; genreIds: number[] }
-): TasteProfile {
-  const next: TasteProfile = {
-    likedGenres: { ...profile.likedGenres },
-    dislikedGenres: { ...profile.dislikedGenres },
-    liked: [...profile.liked],
-    disliked: [...profile.disliked],
-  };
-
-  const wasLiked = next.liked.some((e) => e.id === movie.id);
-  const wasDisliked = next.disliked.some((e) => e.id === movie.id);
-
-  if (wasLiked) {
-    next.liked = next.liked.filter((e) => e.id !== movie.id);
-    for (const gid of movie.genreIds) {
-      const count = (next.likedGenres[gid] ?? 0) - 1;
-      if (count > 0) next.likedGenres[gid] = count;
-      else delete next.likedGenres[gid];
-    }
-  }
-  if (wasDisliked) {
-    next.disliked = next.disliked.filter((e) => e.id !== movie.id);
-    for (const gid of movie.genreIds) {
-      const count = (next.dislikedGenres[gid] ?? 0) - 1;
-      if (count > 0) next.dislikedGenres[gid] = count;
-      else delete next.dislikedGenres[gid];
-    }
-  }
-
-  return next;
+export function withCustomTaste(profile: TasteProfile, text: string): TasteProfile {
+  return { ...profile, customTaste: text.slice(0, MAX_CUSTOM_TASTE_LENGTH) };
 }
 
 function topGenreIds(counts: Record<string, number>, n: number): number[] {
@@ -134,12 +122,9 @@ export function profileSummaryForAI(profile: TasteProfile): string | null {
   const liked = topGenreIds(profile.likedGenres, 3)
     .map((id) => GENRE_ID_TO_KEY[id])
     .filter(Boolean);
-  const disliked = topGenreIds(profile.dislikedGenres, 3)
-    .map((id) => GENRE_ID_TO_KEY[id])
-    .filter(Boolean);
-  if (!liked.length && !disliked.length) return null;
   const parts: string[] = [];
-  if (liked.length) parts.push(`previously enjoyed genres: ${liked.join(", ")}`);
-  if (disliked.length) parts.push(`previously disliked genres: ${disliked.join(", ")}`);
+  if (liked.length) parts.push(`genres inferred from past interest: ${liked.join(", ")}`);
+  if (profile.customTaste.trim()) parts.push(`user-described taste: ${profile.customTaste.trim()}`);
+  if (!parts.length) return null;
   return parts.join("; ");
 }

@@ -4,46 +4,20 @@ import { GENRE_LABELS_HE } from "@/lib/config";
 
 export default function MovieCard({
   movie,
-  isLiked,
-  isDisliked,
-  onLike,
-  onDislike,
+  onWatchClick,
+  onTrailerClick,
 }: {
   movie: Recommendation;
-  isLiked: boolean;
-  isDisliked: boolean;
-  onLike: () => void;
-  onDislike: () => void;
+  // No like/dislike buttons — taste is learned from what you actually click
+  // (watching a trailer, going to watch on Netflix), not a separate rating.
+  onWatchClick: () => void;
+  onTrailerClick: () => void;
 }) {
   return (
     <article className="group flex flex-col overflow-hidden rounded-3xl bg-white shadow-md shadow-black/5 ring-1 ring-black/5 transition hover:shadow-xl hover:shadow-black/10">
       <div className="relative">
         <div className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-ink/80 text-sm font-bold text-white backdrop-blur">
           {movie.rank}
-        </div>
-        <div className="absolute top-3 left-3 z-10 flex gap-1.5">
-          <button
-            type="button"
-            onClick={onLike}
-            aria-label="אהבתי את ההמלצה הזו"
-            aria-pressed={isLiked}
-            className={`flex h-9 w-9 items-center justify-center rounded-full text-base backdrop-blur transition ${
-              isLiked ? "bg-green-600 text-white" : "bg-ink/50 text-white hover:bg-ink/70"
-            }`}
-          >
-            👍
-          </button>
-          <button
-            type="button"
-            onClick={onDislike}
-            aria-label="לא אהבתי את ההמלצה הזו"
-            aria-pressed={isDisliked}
-            className={`flex h-9 w-9 items-center justify-center rounded-full text-base backdrop-blur transition ${
-              isDisliked ? "bg-accent text-white" : "bg-ink/50 text-white hover:bg-ink/70"
-            }`}
-          >
-            👎
-          </button>
         </div>
         <div className="relative aspect-[2/3] w-full bg-paper-dim">
           {movie.posterUrl ? (
@@ -114,6 +88,7 @@ export default function MovieCard({
               href={movie.trailerUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={onTrailerClick}
               className="flex-1 rounded-xl border border-ink/15 px-3 py-2.5 text-center text-sm font-semibold text-ink transition hover:border-ink/40"
             >
               ▶ צפו בטריילר
@@ -127,6 +102,7 @@ export default function MovieCard({
             href={movie.netflixUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={onWatchClick}
             className="flex-1 rounded-xl bg-accent px-3 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-accent-dark"
           >
             {movie.netflixVerified ? "✓ צפו בנטפליקס" : "חפשו בנטפליקס"}
