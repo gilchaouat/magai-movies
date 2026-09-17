@@ -73,13 +73,11 @@ export default function MovieCard({
           </div>
         )}
 
-        <p className="line-clamp-3 text-sm leading-relaxed text-ink/75">
-          {movie.overview}
-        </p>
+        <p className="text-sm leading-relaxed text-ink/75">{movie.overview}</p>
 
         <div className="rounded-xl bg-accent/5 p-3 ring-1 ring-accent/10">
           <p className="text-xs font-bold text-accent">למה זה מתאים לך</p>
-          <p className="mt-1 line-clamp-2 text-sm text-ink/80">{movie.whyItMatches}</p>
+          <p className="mt-1 text-sm text-ink/80">{movie.whyItMatches}</p>
         </div>
 
         <div className="mt-auto flex gap-2 pt-1">

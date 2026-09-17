@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 import PromptForm from "@/components/PromptForm";
 import Conversation from "@/components/Conversation";
@@ -8,6 +9,15 @@ import { getRecommendations } from "@/lib/recommend";
 import { TmdbConfigError } from "@/lib/tmdb";
 import { activeAiProvider } from "@/lib/ai";
 import { TASTE_COOKIE, decodeProfile } from "@/lib/taste";
+import { TASTE_SEARCH_QUERY } from "@/lib/config";
+
+function hasMeaningfulTaste(profile: ReturnType<typeof decodeProfile>): boolean {
+  return !!(
+    profile.customTaste.trim() ||
+    profile.liked.length > 0 ||
+    Object.keys(profile.likedGenres).length > 0
+  );
+}
 
 type SearchParams = Promise<{ q?: string | string[] }>;
 
@@ -44,6 +54,18 @@ export default async function Home({
   searchParams: SearchParams;
 }) {
   const q = normalizeQuery((await searchParams).q);
+
+  // Returning visitors always start from a taste-based search instead of a
+  // blank prompt box — first-time visitors (no taste data yet) still land on
+  // the plain homepage, where "הטעם שלך" below is open and inviting them to
+  // fill it in before searching.
+  if (!q) {
+    const cookieStore = await cookies();
+    const profile = decodeProfile(cookieStore.get(TASTE_COOKIE)?.value);
+    if (hasMeaningfulTaste(profile)) {
+      redirect(`/?q=${encodeURIComponent(TASTE_SEARCH_QUERY)}`);
+    }
+  }
 
   return (
     <main className="flex-1">

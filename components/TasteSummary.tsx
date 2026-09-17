@@ -1,15 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { GENRE_LABELS_HE, GENRE_ID_TO_KEY } from "@/lib/config";
+import { useEffect, useState } from "react";
+import { GENRE_LABELS_HE, GENRE_ID_TO_KEY, TASTE_SEARCH_QUERY } from "@/lib/config";
 import { emptyProfile, withCustomTaste, type TasteProfile } from "@/lib/taste";
 import { readTasteProfile, writeTasteProfile } from "@/lib/tasteClient";
-
-// A deliberately generic phrase — no genre words in it — so the existing
-// "no genre named -> fall back to the taste profile" logic in lib/recommend
-// kicks in on its own, and the free-text taste description gets read as
-// real context instead of being overridden by an explicit request.
-const TASTE_SEARCH_QUERY = "תמצא לי סרט טוב שמתאים לטעם שלי";
 
 function topGenreLabels(counts: Record<string, number>): string[] {
   return Object.entries(counts)
@@ -20,16 +14,25 @@ function topGenreLabels(counts: Record<string, number>): string[] {
 }
 
 export default function TasteSummary() {
-  const [open, setOpen] = useState(false);
+  // Open by default — this is meant to be the app's visible, editable
+  // starting point, not something tucked behind a click.
+  const [open, setOpen] = useState(true);
   const [profile, setProfile] = useState<TasteProfile | null>(null);
   const [customTasteInput, setCustomTasteInput] = useState("");
 
-  function handleToggle() {
-    if (!open) {
+  useEffect(() => {
+    // Reading the cookie has to wait for the client (no `document` during
+    // SSR) — deferring the state update to a microtask, rather than calling
+    // it synchronously in the effect body, avoids a render-cascade warning
+    // for what's otherwise a plain "sync from an external source" read.
+    Promise.resolve().then(() => {
       const current = readTasteProfile();
       setProfile(current);
       setCustomTasteInput(current.customTaste);
-    }
+    });
+  }, []);
+
+  function handleToggle() {
     setOpen((o) => !o);
   }
 

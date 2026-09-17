@@ -47,6 +47,14 @@ export const QUICK_CHIPS = [
   "סרט משפחתי מצחיק",
 ];
 
+// A deliberately generic phrase — no genre words in it — so the existing
+// "no genre named -> fall back to the taste profile" logic in lib/recommend
+// kicks in on its own, and the free-text taste description gets read as
+// real context instead of being overridden by an explicit request. Used both
+// by the "search by my taste" button and by the homepage's auto-redirect for
+// returning users.
+export const TASTE_SEARCH_QUERY = "תמצא לי סרט טוב שמתאים לטעם שלי";
+
 // Client-side result filters -> TMDB genre ids they match against
 export const RESULT_FILTERS: { label: string; genreId: number | null }[] = [
   { label: "הכול", genreId: null },
