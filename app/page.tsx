@@ -74,19 +74,33 @@ export default async function Home({
           <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-accent">
             MAGAI Movies
           </p>
-          <h1 className="font-serif text-4xl font-bold leading-tight text-ink sm:text-5xl">
-            מה נראה הערב?
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-ink/60">
-            כתוב מה בא לך לראות — ונבנה לך רשימה אישית.
-          </p>
+          {!q ? (
+            <>
+              <h1 className="font-serif text-4xl font-bold leading-tight text-ink sm:text-5xl">
+                קודם כל, בואו נכיר את הטעם שלך
+              </h1>
+              <p className="mx-auto mt-4 max-w-xl text-lg text-ink/60">
+                זה הבסיס שממנו הכול מתחיל. כל חיפוש שתבצעו — עכשיו ובכל פעם אחרת — הוא רק עידון
+                של הטעם הזה, ותמיד מבוסס עליו.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="font-serif text-4xl font-bold leading-tight text-ink sm:text-5xl">
+                מה נראה הערב?
+              </h1>
+              <p className="mx-auto mt-4 max-w-xl text-lg text-ink/60">
+                בחרנו בשבילכם לפי הטעם שלכם — אפשר לערוך אותו כאן בכל רגע.
+              </p>
+            </>
+          )}
         </div>
+        <TasteSummary />
         {!q && (
-          <div className="mt-10">
+          <div className="mt-8">
             <PromptForm initialQuery={q} />
           </div>
         )}
-        <TasteSummary />
       </section>
 
       {q && (

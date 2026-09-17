@@ -8,11 +8,30 @@ export default function PromptForm({ initialQuery }: { initialQuery: string }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [value, setValue] = useState(initialQuery);
   const [submitting, setSubmitting] = useState(false);
+  // Collapsed by default: the taste panel above is the primary action here,
+  // this is only a secondary path for "I have something specific in mind
+  // right now" — it refines the taste search, it doesn't replace it.
+  const [revealed, setRevealed] = useState(!!initialQuery);
 
   function submitChip(chip: string) {
     setValue(chip);
     // Let the input reflect the chip before submitting on the next tick.
     requestAnimationFrame(() => formRef.current?.requestSubmit());
+  }
+
+  if (!revealed) {
+    return (
+      <div className="mx-auto max-w-xl border-t border-dashed border-ink/15 pt-5 text-center">
+        <p className="mb-1.5 text-xs font-bold text-ink/40">יש לכם משהו ספציפי בראש דווקא עכשיו?</p>
+        <button
+          type="button"
+          onClick={() => setRevealed(true)}
+          className="text-sm font-bold text-accent hover:text-accent-dark"
+        >
+          אפשר גם לתאר בקשה מסוימת — היא רק תעדן את הטעם שלמעלה, לא תחליף אותו ←
+        </button>
+      </div>
+    );
   }
 
   return (
