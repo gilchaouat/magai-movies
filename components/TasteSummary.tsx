@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GENRE_LABELS_HE, GENRE_ID_TO_KEY, TASTE_SEARCH_QUERY } from "@/lib/config";
+import { GENRE_LABELS_HE, GENRE_ID_TO_KEY } from "@/lib/config";
 import { emptyProfile, withCustomTaste, type TasteProfile } from "@/lib/taste";
 import { readTasteProfile, writeTasteProfile } from "@/lib/tasteClient";
 
@@ -49,16 +49,8 @@ export default function TasteSummary() {
     setProfile(next);
   }
 
-  function handleSearchByTaste() {
-    // Make sure a just-typed, not-yet-blurred edit is saved before the
-    // search reads the cookie.
-    const current = readTasteProfile();
-    writeTasteProfile(withCustomTaste(current, customTasteInput));
-  }
-
   const likedGenres = profile ? topGenreLabels(profile.likedGenres) : [];
   const hasLearnedAnything = !!(profile && (likedGenres.length || profile.liked.length));
-  const hasAnyTaste = hasLearnedAnything || !!customTasteInput.trim();
 
   return (
     <div className="mx-auto mt-4 max-w-xl text-center">
@@ -81,22 +73,12 @@ export default function TasteSummary() {
               onChange={(e) => setCustomTasteInput(e.target.value)}
               onBlur={handleCustomTasteBlur}
               placeholder="למשל: אני אוהב/ת דרמות איטיות, לא אוהב/ת אקשן, מעדיף/ה סרטים קצרים"
-              rows={2}
+              rows={6}
               maxLength={300}
               dir="rtl"
               className="w-full resize-none rounded-lg border border-ink/15 p-2.5 text-sm text-ink outline-none focus:border-accent"
             />
           </div>
-
-          {hasAnyTaste && (
-            <a
-              href={`/?q=${encodeURIComponent(TASTE_SEARCH_QUERY)}`}
-              onClick={handleSearchByTaste}
-              className="inline-block rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-accent-dark"
-            >
-              🔍 חפש לי סרט לפי הטעם שלי
-            </a>
-          )}
 
           <div className="border-t border-ink/10 pt-4">
             <p className="mb-2 text-xs font-bold text-ink/50">

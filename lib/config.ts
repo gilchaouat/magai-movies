@@ -40,13 +40,6 @@ export const WATCH_REGION = "IL";
 // TMDB's stable provider id for Netflix
 export const NETFLIX_PROVIDER_ID = 8;
 
-export const QUICK_CHIPS = [
-  "קליל לערב זוגי",
-  "מתח בלי אימה",
-  "דוקו פשע אמיתי",
-  "סרט משפחתי מצחיק",
-];
-
 // A deliberately generic phrase — no genre words in it — so the existing
 // "no genre named -> fall back to the taste profile" logic in lib/recommend
 // kicks in on its own, and the free-text taste description gets read as

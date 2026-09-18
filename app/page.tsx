@@ -1,15 +1,13 @@
 import { Suspense } from "react";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import PromptForm from "@/components/PromptForm";
+import HomeSearchBar from "@/components/HomeSearchBar";
 import Conversation from "@/components/Conversation";
 import TasteSummary from "@/components/TasteSummary";
 import { getRecommendations } from "@/lib/recommend";
 import { TmdbConfigError } from "@/lib/tmdb";
 import { activeAiProvider } from "@/lib/ai";
 import { TASTE_COOKIE, decodeProfile } from "@/lib/taste";
-import { TASTE_SEARCH_QUERY } from "@/lib/config";
 
 function hasMeaningfulTaste(profile: ReturnType<typeof decodeProfile>): boolean {
   return !!(
@@ -55,17 +53,15 @@ export default async function Home({
 }) {
   const q = normalizeQuery((await searchParams).q);
 
-  // Returning visitors always start from a taste-based search instead of a
-  // blank prompt box — first-time visitors (no taste data yet) still land on
-  // the plain homepage, where "הטעם שלך" below is open and inviting them to
-  // fill it in before searching.
-  if (!q) {
-    const cookieStore = await cookies();
-    const profile = decodeProfile(cookieStore.get(TASTE_COOKIE)?.value);
-    if (hasMeaningfulTaste(profile)) {
-      redirect(`/?q=${encodeURIComponent(TASTE_SEARCH_QUERY)}`);
-    }
-  }
+  // Whether to show onboarding copy vs. a "ready to go" homepage depends on
+  // whether taste exists yet, not on whether a search is in progress — a
+  // returning visitor who hasn't searched *this* visit still has taste, so
+  // shouldn't see "let's meet your taste" again. No auto-redirect into a
+  // search here: that used to force the ~20-30s AI+TMDB round trip to finish
+  // before anything could render, which showed as a long blank screen.
+  const cookieStore = await cookies();
+  const profile = decodeProfile(cookieStore.get(TASTE_COOKIE)?.value);
+  const hasTaste = hasMeaningfulTaste(profile);
 
   return (
     <main className="flex-1">
@@ -74,7 +70,7 @@ export default async function Home({
           <p className="mb-3 text-sm font-bold uppercase tracking-[0.2em] text-accent">
             MAGAI Movies
           </p>
-          {!q ? (
+          {!hasTaste ? (
             <>
               <h1 className="font-serif text-4xl font-bold leading-tight text-ink sm:text-5xl">
                 קודם כל, בואו נכיר את הטעם שלך
@@ -90,7 +86,7 @@ export default async function Home({
                 מה נראה הערב?
               </h1>
               <p className="mx-auto mt-4 max-w-xl text-lg text-ink/60">
-                בחרנו בשבילכם לפי הטעם שלכם — אפשר לערוך אותו כאן בכל רגע.
+                הטעם שלכם כבר כאן ומוכן — תכתבו בקשה ספציפית, או תנו לנו למצוא לפי הטעם.
               </p>
             </>
           )}
@@ -98,7 +94,7 @@ export default async function Home({
         <TasteSummary />
         {!q && (
           <div className="mt-8">
-            <PromptForm initialQuery={q} />
+            <HomeSearchBar />
           </div>
         )}
       </section>
@@ -171,22 +167,19 @@ function ErrorState({ title, message }: { title: string; message: string }) {
   );
 }
 
+// A real search takes ~20-30 seconds (an AI call to understand the request,
+// a TMDB search, fetching posters/trailers, a second AI call to write
+// descriptions) — a plain spinner reads as stuck that long, so this sets a
+// time expectation and shows visible, ongoing progress instead.
 function ResultsSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <div
-          key={i}
-          className="animate-pulse overflow-hidden rounded-3xl bg-white shadow-md shadow-black/5 ring-1 ring-black/5"
-        >
-          <div className="aspect-[2/3] w-full bg-paper-dim" />
-          <div className="space-y-2 p-5">
-            <div className="h-4 w-3/4 rounded bg-paper-dim" />
-            <div className="h-3 w-1/2 rounded bg-paper-dim" />
-            <div className="h-16 rounded bg-paper-dim" />
-          </div>
-        </div>
-      ))}
+    <div className="mx-auto max-w-md py-14 text-center">
+      <div className="mx-auto mb-4 h-[3px] w-full overflow-hidden rounded-full bg-paper-dim">
+        <div className="h-full w-2/5 animate-sweep rounded-full bg-gradient-to-r from-transparent via-accent to-transparent" />
+      </div>
+      <p className="text-sm text-ink/50">
+        מרכיבים בשבילך המלצות מדויקות · <span className="font-bold text-ink">כ-20 שניות</span>
+      </p>
     </div>
   );
 }
