@@ -13,10 +13,12 @@ function topGenreLabels(counts: Record<string, number>): string[] {
     .filter((v): v is string => !!v);
 }
 
-export default function TasteSummary() {
-  // Open by default — this is meant to be the app's visible, editable
-  // starting point, not something tucked behind a click.
-  const [open, setOpen] = useState(true);
+export default function TasteSummary({ defaultOpen = true }: { defaultOpen?: boolean }) {
+  // Open by default on the plain homepage — this is meant to be the app's
+  // visible, editable starting point. Once there are results on screen,
+  // the panel alone can fill the whole iPhone viewport and hide the movies
+  // below it entirely, so the caller collapses it by passing false there.
+  const [open, setOpen] = useState(defaultOpen);
   const [profile, setProfile] = useState<TasteProfile | null>(null);
   const [customTasteInput, setCustomTasteInput] = useState("");
 

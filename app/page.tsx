@@ -91,7 +91,7 @@ export default async function Home({
             </>
           )}
         </div>
-        <TasteSummary />
+        <TasteSummary defaultOpen={!q} />
         {!q && (
           <div className="mt-8">
             <HomeSearchBar />
