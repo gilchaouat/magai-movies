@@ -91,7 +91,14 @@ export default async function Home({
             </>
           )}
         </div>
-        <TasteSummary defaultOpen={!q} />
+        {/*
+          Keyed on whether results exist: the homepage's empty-submit search
+          navigates client-side (router.push), so without a key change here
+          this component would stay mounted and its `open` state (set only
+          once, from `defaultOpen`, on first mount) would never re-sync when
+          results appear.
+        */}
+        <TasteSummary key={q ? "results" : "home"} defaultOpen={!q} />
         {!q && (
           <div className="mt-8">
             <HomeSearchBar />
